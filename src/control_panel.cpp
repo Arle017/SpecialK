@@ -2285,7 +2285,6 @@ DisplayModeMenu (bool windowed)
   }
 }
 
-
 extern float __target_fps;
 extern float __target_fps_bg;
 
@@ -4042,7 +4041,7 @@ SK_ImGui_ControlPanel (void)
 
   static bool has_own_limiter    = hModTBFix;
   static bool has_own_limiter_ex = hModTZFix;
-
+  int __result;
   if (! has_own_limiter)
   {
     ImGui::PushItemWidth (ImGui::GetWindowWidth () * 0.666f);
@@ -4052,6 +4051,19 @@ SK_ImGui_ControlPanel (void)
     {
       SK_ImGui_DrawGraph_FramePacing ();
 
+      if (ImGui::Checkbox("Associate room_speed and framerate limiter", &fg_limiter)) {
+      }
+      if (ImGui::IsItemHovered() && fg_limiter)
+      {
+          static bool unity =
+              rb.windows.unity;
+
+          ImGui::BeginTooltip();
+          ImGui::Text(
+              "A semi-measure to prevent the game from slowing down if it actively uses room_speed."
+              " Not yet adapted to screen_redraw() or screen_refresh()");
+          ImGui::EndTooltip();
+      }
       if (! has_own_limiter_ex)
       {
         static bool advanced = false;
@@ -4066,6 +4078,7 @@ SK_ImGui_ControlPanel (void)
 
         if (ImGui::Checkbox ("Framerate Limit", &limit))
         {
+          
           if (__target_fps != 0.0f) // Negative zero... it exists and we don't want it.
               __target_fps = -__target_fps;
 
@@ -4077,33 +4090,13 @@ SK_ImGui_ControlPanel (void)
 
           config.render.framerate.target_fps = __target_fps;
         }
-
         bool bg_limit =
               ( limit &&
           ( __target_fps_bg != 0.0f ) );
 
         if (limit)
         {
-          if (ImGui::IsItemHovered ())
-          {
-            ImGui::BeginTooltip ();
-            ImGui::TextUnformatted (
-              "Graph color represents frame time variance, not proximity"
-              " to your target FPS."
-            );
-
-          //if ( ( rb.api == SK_RenderAPI::D3D11 ||
-          //       rb.api == SK_RenderAPI::D3D12 ) && (! (config.render.framerate.flip_discard &&
-          //                                              config.render.framerate.swapchain_wait > 0)))
-          //{
-          //  ImGui::Separator       ();
-          //  ImGui::TextUnformatted ("Did you know ... to get the most out of SK's Framerate Limiter:");
-          //  ImGui::BulletText      ("Enable Flip Model + Waitable SwapChain in D3D11/12 / SwapChain Settings");
-          //}
-
-            ImGui::EndTooltip ();
-          }
-
+ 
           if (advanced)
           {
             if (ImGui::Checkbox ("Background", &bg_limit))

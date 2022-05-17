@@ -4524,4 +4524,9 @@
       <Filter>Resource Files\Shaders</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Page Include="BlankPage.xaml">
+      <Filter>Source Files\Plugins</Filter>
+    </Page>
+  </ItemGroup>
 </Project>

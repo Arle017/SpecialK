@@ -1384,6 +1384,44 @@ SK::Framerate::Limiter::wait (void)
   auto _time =
     SK_QueryPerf ().QuadPart;
 
+  //Brainfuck moment
+  int __result, __gmVer;
+  static bool __checked = false;
+  if (fg_limiter) {
+      HWND __GameWindow = SK_GetGameWindow();
+      DWORD procID;
+      GetWindowThreadProcessId(__GameWindow, &procID);
+      HANDLE __GameHandle = OpenProcess(PROCESS_ALL_ACCESS, false, procID);
+      uint8_t* base_addr = (uint8_t*)SK_GetModuleHandle(nullptr);
+
+      MEMORY_BASIC_INFORMATION mem_info;
+      VirtualQuery(base_addr, &mem_info, sizeof mem_info);
+      base_addr = (uint8_t*)mem_info.BaseAddress;
+
+      if (base_addr != NULL) {
+
+          if (__checked == false) {
+              ReadProcessMemory(__GameHandle, (LPVOID*)0x6c73c4, &__gmVer, sizeof(__gmVer), 0);
+              ReadProcessMemory(__GameHandle, (LPVOID*)__gmVer + 0x2, &__gmVer, sizeof(__gmVer), 0);
+              if (__gmVer == 50 || __gmVer == 60 || __gmVer == 30) { __gmVer = 80; __checked == true; }
+          }
+          //ReadProcessMemory(__GameHandle, (LPCVOID*)0x8452f8 + 0x8, &__result, sizeof(__result), 0);
+          if (__gmVer == 80) {
+              ReadProcessMemory(__GameHandle, (LPVOID*)0x6c73c4, &__result, sizeof(__result), 0);
+              ReadProcessMemory(__GameHandle, (LPVOID*)__result + 0x2, &__result, sizeof(__result), 0);
+          }
+          else {
+              ReadProcessMemory(__GameHandle, (LPVOID*)0x8452f8, &__result, sizeof(__result), 0);
+              ReadProcessMemory(__GameHandle, (LPVOID*)__result + 0x2, &__result, sizeof(__result), 0);
+          }
+          //if (__result > 240 && __result < 10) {
+          //   ReadProcessMemory(__GameHandle, (LPVOID*)0x8452f8, &__result, sizeof(__result), 0);
+          //   ReadProcessMemory(__GameHandle, (LPVOID*)__result + 0x8, &__result, sizeof(__result), 0);
+          //}
+          __target_fps = (float)__result;
+      }
+  }
+
 
   bool normal = true;
 
