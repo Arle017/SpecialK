@@ -30,6 +30,7 @@ struct IUnknown;
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h> // For ImGuiSelectableFlags_Disabled
 
+
 namespace SK
 {
   namespace ControlPanel
@@ -56,6 +57,8 @@ bool SK_ImGui_IsItemClicked      (void);
 bool SK_ImGui_IsItemRightClicked (void);
 void SK_ImGui_AdjustCursor       (void);
 
+
+
 // Special K Extensions to ImGui (Dialog Controls)
 //
 namespace SK_ImGui
@@ -76,4 +79,6 @@ struct show_eula_s {
   bool never_show_again;
 } extern eula;
 
+
+extern bool fg_limiter = false;
 #endif /* __SK__CONTROL_PANEL_H__ */
