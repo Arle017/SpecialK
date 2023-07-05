@@ -27,12 +27,14 @@
 #include <string>
 #include <set>
 #include <unordered_set>
+#include <concurrent_unordered_set.h>
 #include <concurrent_unordered_map.h>
 #include <filesystem>
 #include <intsafe.h>
 
 #include <SpecialK/render/backend.h>
 #include <SpecialK/window.h>
+#include <SpecialK/core.h>
 
 struct SK_Keybind
 {
@@ -351,6 +353,39 @@ struct sk_config_t
     bool        present               = false;  // Is the overlay detected?
   } rtss;
 
+  struct reshade_s {
+    float       overlay_luminance     = 4.375F; // 350 nits
+    bool        present               = false;  // Is the overlay detected?
+  } reshade;
+
+  struct sound_s {
+    SK_ConfigSerializedKeybind
+         game_mute_keybind = {
+      SK_Keybind {
+        "Mute the Game", L"Ctrl+Shift+Home",
+         true, true, false, VK_HOME
+      }, L"MuteGame"
+    };
+
+    SK_ConfigSerializedKeybind
+         game_volume_up_keybind = {
+      SK_Keybind {
+        "Increase Volume 10%", L"Ctrl+Shift+Insert",
+         true, true, false, VK_INSERT
+      }, L"VolumePlus10%"
+    };
+
+    SK_ConfigSerializedKeybind
+         game_volume_down_keybind = {
+      SK_Keybind {
+        "Decrease Volume 10%", L"Ctrl+Shift+Delete",
+         true, true, false, VK_DELETE
+      }, L"VolumeMinus10%"
+    };
+
+    bool        minimize_latency      = false;
+  } sound;
+
   struct screenshots_s {
     bool        png_compress          =  true;
     bool        show_osd_by_default   =  true;
@@ -446,8 +481,10 @@ struct sk_config_t
       bool    enable_mmcss        =  true;
       int     enforcement_policy  =     4; // Refer to framerate.cpp
       bool    auto_low_latency    =  true; // VRR users have the limiter default to low-latency
+      bool    auto_low_latency_ex = false; // VRR auto-optimization goes further (potential stutter)
+      bool    auto_low_latency_opt=  true; // Opt-In for Auto Low Latency as default policy
       bool    enable_etw_tracing  =  true;
-      bool    supports_etw_trace  =  false;// Not stored in config file
+      bool    supports_etw_trace  = false;// Not stored in config file
       struct latent_sync_s {
         SK_ConfigSerializedKeybind
           tearline_move_up_keybind = {
@@ -480,7 +517,6 @@ struct sk_config_t
         int   scanline_offset      =    -1;
         int   scanline_resync      =   750;
         int   scanline_error       =     1;
-        bool  adaptive_sync        =  true;
         float delay_bias           =  0.0f;
         bool  show_fcat_bars       = false; // Not INI-persistent
 
@@ -536,13 +572,16 @@ struct sk_config_t
       bool    present_test_skip    = false;
       bool    hide_hdr_support     = false; // Games won't know HDR is supported
       bool    use_factory_cache    =  true; // Fix performance issues in Resident Evil 8
-      bool    skip_mode_changes    = false; // Try to skip rendundant resolution changes
+      bool    skip_mode_changes    =  true; // Try to skip rendundant resolution changes
       bool    temporary_dwm_hdr    = false; // Always turns HDR on and off for this game
       bool    disable_virtual_vbi  =  true; // Disable Windows 11 Dynamic Refresh Rate
       bool    ignore_thread_flags  = false; // Remove threading flags from D3D11 devices
       bool    clear_flipped_chain  =  true; // Clear buffers on present? (non-compliant)
       float   chain_clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
       bool    suppress_resize_fail =  true; // Workaround EOS Overlay bug in D3D12
+      bool    suppress_rtv_mismatch= false; // Hide SwapChain RTV format warnings for buggy games
+      float   warn_if_vram_exceeds =  95.f; // Warn if VRAM usage exceeds % of available
+      bool    warned_low_vram      = false; // NOT SAVED: State of warn_if_vram_exceeds
     } dxgi;
 
     struct {
@@ -589,12 +628,13 @@ struct sk_config_t
     int       monitor_idx          =     0;
     HMONITOR  monitor_handle       =     0;
     int       monitor_default      = MONITOR_DEFAULTTONEAREST;
-    float     refresh_rate         =  0.0F; // TODO
+    float     refresh_rate         =  0.0F;
     bool      force_fullscreen     = false;
     bool      force_windowed       = false;
     bool      aspect_ratio_stretch = false;
     bool      confirm_mode_changes = true;
     bool      save_monitor_prefs   = true;
+    bool      warn_no_mpo_planes   = false;
     struct resolution_s {
       bool           save          = true;
       bool           applied       = false;
@@ -676,14 +716,16 @@ struct sk_config_t
       bool    snuffed_ansel       = false;
       bool    bypass_ansel        =  true;
     } bugs;
-    struct sleep_s {
+    struct reflex_s {
       UINT    frame_interval_us   =      0;
       int     enforcement_site    =      1;
       bool    low_latency         =  false;
       bool    low_latency_boost   =  false;
       bool    marker_optimization =  false;
       bool    enable              =  false;
-    } sleep;
+      bool    native              =  false;
+      bool    override            =  false;
+    } reflex;
   } nvidia;
 
   struct input_s {
@@ -847,6 +889,7 @@ struct sk_config_t
     bool     allow_dxdiagn            = false;
     bool     auto_large_address_patch =  true;
     bool     init_on_separate_thread  =  true;
+    bool     shutdown_on_window_close = false;
   } compatibility;
 
   struct apis_s {
@@ -917,7 +960,6 @@ struct sk_config_t
     bool    display_debug_out   = false;
     bool    game_output         =  true;
     bool    central_repository  = false;
-    bool    ignore_rtss_delay   = false;
     bool    wait_for_debugger   = false;
     bool    return_to_skif      = false;
   } system;
@@ -927,6 +969,7 @@ struct sk_config_t
     bool    raise_bg            = false;
     bool    raise_fg            =  true;
     bool    deny_foreign_change =  true;
+    int     minimum_render_prio = THREAD_PRIORITY_ABOVE_NORMAL;
   } priority;
 
   struct skif_s {
@@ -1225,6 +1268,9 @@ enum class SK_GAME_ID
   SoulHackers2,                 // SOUL HACKERS2.exe
   MegaManBattleNetwork,         // MMBN_LC2.exe, MMBN_LC1.exe
   HonkaiStarRail,               // StarRail.exe
+  NoMansSky,                    // NMS.exe
+  DiabloIV,                     // Diablo IV.exe
+  CallOfDuty,                   // CoDSP.exe, CoDMP.exe (???)
 
   UNKNOWN_GAME               = 0xffff
 };

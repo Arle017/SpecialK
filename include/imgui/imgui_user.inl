@@ -27,7 +27,6 @@ volatile LONG
 
 #include <SpecialK/control_panel.h>
 
-extern bool IMGUI_API SK_ImGui_Visible;
 extern bool           SK_ImGui_IsMouseRelevant (void);
 
 extern HWND           SK_GetParentWindow    (HWND);
@@ -54,7 +53,6 @@ SK_ImGui_GetGlyphRangesDefaultEx (void)
   return &ranges [0];
 }
 
-#include <../imgui/fa_regular_400.ttf.h>
 #include <../imgui/fa_brands_400.ttf.h>
 #include <../imgui/fa_solid_900.ttf.h>
 
@@ -166,9 +164,6 @@ SK_ImGui_LoadFonts (void)
     };
 
     auto      awesome_fonts = {
-      std::make_tuple (
-        FONT_ICON_FILE_NAME_FAR, fa_regular_400_ttf,
-                     _ARRAYSIZE (fa_regular_400_ttf) ),
       std::make_tuple (
         FONT_ICON_FILE_NAME_FAS, fa_solid_900_ttf,
                      _ARRAYSIZE (fa_solid_900_ttf) ),
@@ -1844,6 +1839,7 @@ if (api_bridge)
     SK_ImGui_ToggleEx (bToggleVis,bToggleNav);
 
 
+  static bool last_haptic = false;
 
   if (SK_ImGui_Active () && config.input.gamepad.haptic_ui && nav_usable)
   {
@@ -1900,6 +1896,16 @@ if (api_bridge)
     }
 
     nav_id = g.NavId;
+
+    last_haptic = true;
+  }
+
+  else if (std::exchange (last_haptic, false))
+  {
+    // Clear haptics on the first frame after they're no longer relevant
+    SK_XInput_PulseController (
+      config.input.gamepad.xinput.ui_slot, 0.0f, 0.0f
+    );
   }
 
   last_state = state;

@@ -956,8 +956,6 @@ public:
       // Deactivating, but we might want to hide this event from the game...
       if (pParam->m_bActive == 0)
       {
-        extern bool SK_ImGui_Visible;
-
         // Undo the event the game is about to receive.
         if (SK_ImGui_Visible) SK::SteamAPI::SetOverlayState (true);
       }
@@ -5261,22 +5259,25 @@ SK_SteamAPIContext::OnFileDetailsDone ( FileDetailsResult_t* pParam,
 void
 SK_Steam_ForceInputAppId (AppId64_t appid)
 {
-  static volatile LONG changes = 0;
-
-  if ( ReadAcquire (&__SK_DLL_Ending) &&
-       ReadAcquire (&changes) > 1 ) // First change is always to 0
-  {
-    // Cleanup on unexpected application termination
-    //
-    SK_ShellExecuteA ( 0, "OPEN",
-              R"(steam://forceinputappid/0)", nullptr, nullptr,
-                    SW_HIDE );
-
+  if (config.platform.silent)
     return;
-  }
 
-  if (config.steam.appid != 0)
+  if (config.steam.appid > 0)
   {
+    static volatile LONG changes = 0;
+
+    if ( ReadAcquire (&__SK_DLL_Ending) &&
+         ReadAcquire (&changes) > 1 ) // First change is always to 0
+    {
+      // Cleanup on unexpected application termination
+      //
+      SK_ShellExecuteA ( 0, "OPEN",
+                R"(steam://forceinputappid/0)", nullptr, nullptr,
+                      SW_HIDE );
+    
+      return;
+    }
+
     struct {
       concurrency::concurrent_queue <AppId64_t> app_ids;
       SK_AutoHandle                             signal =

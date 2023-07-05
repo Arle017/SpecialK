@@ -55,19 +55,23 @@ extern BOOL ADL_init;
 HRESULT
 SK_D3DKMT_QueryAdapterInfo (D3DKMT_QUERYADAPTERINFO *pQueryAdapterInfo)
 {
-  if (! D3DKMTQueryAdapterInfo)
-        D3DKMTQueryAdapterInfo =
+  using  D3DKMTQueryAdapterInfo_pfn = NTSTATUS (WINAPI *)(D3DKMT_QUERYADAPTERINFO *unnamedParam1);
+  static D3DKMTQueryAdapterInfo_pfn
+        _D3DKMTQueryAdapterInfo = nullptr;
+
+  if (!_D3DKMTQueryAdapterInfo)
+       _D3DKMTQueryAdapterInfo = (D3DKMTQueryAdapterInfo_pfn)
         SK_GetProcAddress (
           SK_LoadLibraryW ( L"gdi32.dll" ),
             "D3DKMTQueryAdapterInfo"
                           );
 
-  if (D3DKMTQueryAdapterInfo != nullptr)
+  if (_D3DKMTQueryAdapterInfo != nullptr)
   {
     return
        reinterpret_cast <
          PFND3DKMT_QUERYADAPTERINFO                    > (
-             D3DKMTQueryAdapterInfo) (pQueryAdapterInfo);
+            _D3DKMTQueryAdapterInfo) (pQueryAdapterInfo);
   }
 
   return E_FAIL;
@@ -426,23 +430,23 @@ SK_GPUPollingThread (LPVOID user)
           else stats.gpus [i].hwinfo.mem_type =
               stats0.gpus [i].hwinfo.mem_type;
 
-          NV_DISPLAY_DRIVER_MEMORY_INFO
-            meminfo         = {                               };
-            meminfo.version = NV_DISPLAY_DRIVER_MEMORY_INFO_VER;
+          NV_GPU_MEMORY_INFO_EX
+            meminfo         = {                         };
+            meminfo.version = NV_GPU_MEMORY_INFO_EX_VER_1;
 
-          if (NVAPI_OK == NvAPI_GPU_GetMemoryInfo (gpu, &meminfo))
+          if (NVAPI_OK == NvAPI_GPU_GetMemoryInfoEx (gpu, &meminfo))
           {
             int64_t local =
               (meminfo.availableDedicatedVideoMemory) -
               (meminfo.curAvailableDedicatedVideoMemory);
-
+          
             stats.gpus [i].memory_B.local    = local                        * 1024LL;
             stats.gpus [i].memory_B.capacity = meminfo.dedicatedVideoMemory * 1024LL;
-
+          
             stats.gpus [i].memory_B.total =
               ((meminfo.dedicatedVideoMemory) -
                (meminfo.curAvailableDedicatedVideoMemory)) * 1024LL;
-
+          
             // Compute Non-Local
             stats.gpus [i].memory_B.nonlocal =
              ( stats.gpus [i].memory_B.total - stats.gpus [i].memory_B.local );
@@ -840,6 +844,8 @@ SK_PollGPU (void)
 
   while (pSensors == nullptr)
   {
+    YieldProcessor ();
+
     static int spins = 0;
     if (     ++spins > 16)
     {          spins = 0; return; }

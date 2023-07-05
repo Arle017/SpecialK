@@ -224,6 +224,10 @@ SK_GetCurrentGameID (void)
           { L"MMBN_LC2.exe",                           SK_GAME_ID::MegaManBattleNetwork         },
           { L"StarRail.exe",                           SK_GAME_ID::HonkaiStarRail               },
           { L"ffxiv_dx11.exe",                         SK_GAME_ID::FinalFantasyXIV              },
+          { L"NMS.exe",                                SK_GAME_ID::NoMansSky                    },
+          { L"Diablo IV.exe",                          SK_GAME_ID::DiabloIV                     },
+          { L"CoDSP.exe",                              SK_GAME_ID::CallOfDuty                   },
+          { L"CoDMP.exe",                              SK_GAME_ID::CallOfDuty                   }
         };
 
     first_check  = false;
@@ -576,10 +580,21 @@ struct {
 } rtss;
 
 struct {
+  struct
+  {
+    sk::ParameterFloat*   hdr_luminance           = nullptr;
+  } overlay;
+} reshade;
+
+struct {
   sk::ParameterBool*      per_monitor_aware       = nullptr;
   sk::ParameterBool*      per_monitor_all_threads = nullptr;
   sk::ParameterBool*      disable                 = nullptr;
 } dpi;
+
+struct {
+  sk::ParameterBool*      minimize_latency        = nullptr;
+} sound;
 
 struct {
   struct {
@@ -608,6 +623,7 @@ struct {
     sk::ParameterBool*    low_latency_boost       = nullptr;
     sk::ParameterBool*    marker_optimization     = nullptr;
     sk::ParameterInt*     engagement_policy       = nullptr;
+    sk::ParameterBool*    override_native         = nullptr;
   } reflex;
 } nvidia;
 
@@ -625,7 +641,6 @@ sk::ParameterBool*        handle_crashes          = nullptr;
 sk::ParameterBool*        silent_crash            = nullptr;
 sk::ParameterBool*        crash_suppression       = nullptr;
 sk::ParameterBool*        prefer_fahrenheit       = nullptr;
-sk::ParameterBool*        ignore_rtss_delay       = nullptr;
 sk::ParameterInt*         log_level               = nullptr;
 sk::ParameterBool*        trace_libraries         = nullptr;
 sk::ParameterBool*        strict_compliance       = nullptr;
@@ -659,6 +674,8 @@ struct {
     sk::ParameterInt*     enforcement_policy      = nullptr;
     sk::ParameterBool*    drop_late_frames        = nullptr;
     sk::ParameterBool*    auto_low_latency        = nullptr;
+    sk::ParameterBool*    auto_low_latency_ex     = nullptr;
+    sk::ParameterBool*    auto_low_latency_optin  = nullptr;
     sk::ParameterBool*    enable_etw_tracing      = nullptr;
 
     struct
@@ -672,7 +689,6 @@ struct {
       sk::ParameterInt*   resync                  = nullptr;
       sk::ParameterInt*   error                   = nullptr;
       sk::ParameterFloat* bias                    = nullptr;
-      sk::ParameterBool*  adaptive                = nullptr;
     } latent_sync;
   } framerate;
 
@@ -702,6 +718,7 @@ struct {
     sk::ParameterBool*    temporary_dwm_hdr       = nullptr;
     sk::ParameterBool*    disable_virtual_vbi     = nullptr;
     sk::ParameterBool*    clear_buffers_after_flip= nullptr;
+    sk::ParameterFloat*   warn_if_vram_exceeds    = nullptr;
   } dxgi;
 
   struct {
@@ -727,8 +744,10 @@ struct {
   sk::ParameterBool*      force_windowed          = nullptr;
   sk::ParameterBool*      confirm_mode_changes    = nullptr;
   sk::ParameterBool*      save_monitor_prefs      = nullptr;
+  sk::ParameterBool*      warn_no_mpo_planes      = nullptr;
   sk::ParameterBool*      save_resolution         = nullptr;
   sk::ParameterStringW*   override_resolution     = nullptr;
+  sk::ParameterFloat*     override_refresh        = nullptr;
   sk::ParameterBool*      force_10bpc_sdr         = nullptr;
   sk::ParameterBool*      aspect_ratio_stretch    = nullptr;
 } display;
@@ -862,6 +881,7 @@ struct {
     sk::ParameterBool*    raise_in_fg             = nullptr;
     sk::ParameterBool*    raise_in_bg             = nullptr;
     sk::ParameterBool*    deny_foreign_change     = nullptr;
+    sk::ParameterInt*     min_render_priority     = nullptr;
   } priority;
 } scheduling;
 
@@ -887,9 +907,8 @@ struct {
       ddraw, d3d8,
 #endif
       d3d9,  d3d9ex,
-      d3d11,
+      d3d11, d3d12,
 #ifdef _M_AMD64
-      d3d12,
       Vulkan,
 #endif
       OpenGL;
@@ -1219,11 +1238,14 @@ auto DeclKeybind =
     ConfigEntry (uplay.overlay.hdr_luminance,            L"Make the uPlay Overlay visible in HDR mode!",               osd_ini,         L"uPlay.Overlay",         L"Luminance_scRGB"),
     ConfigEntry (rtss.overlay.hdr_luminance,             L"Make the RTSS Overlay visible in HDR mode!",                osd_ini,         L"RTSS.Overlay",          L"Luminance_scRGB"),
     ConfigEntry (discord.overlay.hdr_luminance,          L"Make the Discord Overlay visible in HDR mode!",             osd_ini,         L"Discord.Overlay",       L"Luminance_scRGB"),
+    ConfigEntry (reshade.overlay.hdr_luminance,          L"Make the ReShade Overlay visible in HDR mode!",             osd_ini,         L"ReShade.Overlay",       L"Luminance_scRGB"),
 
     ConfigEntry (display.confirm_mode_changes,           L"Show Confirmation Dialog when Changing Display Modes",      osd_ini,         L"Display.Settings",      L"ConfirmChanges"),
     ConfigEntry (display.save_monitor_prefs,             L"Remember Monitor Preferences for the Current Game",         dll_ini,         L"Display.Monitor",       L"RememberPreference"),
     ConfigEntry (display.save_resolution,                L"Remember Monitor Resolution for the Current Game" ,         dll_ini,         L"Display.Monitor",       L"RememberResolution"),
     ConfigEntry (display.override_resolution,            L"Apply Resolution Override for the Current Game",            dll_ini,         L"Display.Monitor",       L"ResolutionForMonitor"),
+    ConfigEntry (display.override_refresh,               L"Apply Refresh Override for the Current Game",               dll_ini,         L"Display.Monitor",       L"RefreshRateForMonitor"),
+    ConfigEntry (display.warn_no_mpo_planes,             L"Warn user if Multiplane Overlays support is missing",       dll_ini,         L"Display.Monitor",       L"WarnIfNoOverlayPlanes"),
 
     // Performance Monitoring  (Global Settings)
     //////////////////////////////////////////////////////////////////////////
@@ -1283,6 +1305,10 @@ auto DeclKeybind =
                                   timing_resync_keybind, L"Request a Monitor Timing Resync",                           osd_ini,         L"LatentSync.Control"),
     Keybind ( &config.render.framerate.latent_sync.
                                toggle_fcat_bars_keybind, L"Toggle FCAT Tearing Visualizer",                            osd_ini,         L"LatentSync.Control"),
+
+    Keybind ( &config.sound.game_mute_keybind,           L"Toggle Mute for the Game",                                  osd_ini,         L"Sound.Mixing"),
+    Keybind ( &config.sound.game_volume_up_keybind,      L"Toggle Mute for the Game",                                  osd_ini,         L"Sound.Mixing"),
+    Keybind ( &config.sound.game_volume_down_keybind,    L"Toggle Mute for the Game",                                  osd_ini,         L"Sound.Mixing"),
 
 
     // Input
@@ -1387,9 +1413,9 @@ auto DeclKeybind =
     ConfigEntry (apis.d3d9ex.hook,                       L"Enable Direct3D 9Ex Hooking",                               dll_ini,         L"API.Hook",              L"d3d9ex"),
     ConfigEntry (apis.dxvk9.enable,                      L"Enable Native DXVK (D3D9)",                                 dll_ini,         L"API.Hook",              L"dxvk9"),
     ConfigEntry (apis.d3d11.hook,                        L"Enable Direct3D 11 Hooking",                                dll_ini,         L"API.Hook",              L"d3d11"),
+    ConfigEntry (apis.d3d12.hook,                        L"Enable Direct3D 12 Hooking",                                dll_ini,         L"API.Hook",              L"d3d12"),  
 
 #ifdef _M_AMD64
-    ConfigEntry (apis.d3d12.hook,                        L"Enable Direct3D 12 Hooking",                                dll_ini,         L"API.Hook",              L"d3d12"),
     ConfigEntry (apis.Vulkan.hook,                       L"Enable Vulkan Hooking",                                     dll_ini,         L"API.Hook",              L"Vulkan"),
 #endif
 
@@ -1416,7 +1442,6 @@ auto DeclKeybind =
     ConfigEntry (debug_wait,                             L"Halt Special K Initialization Until Debugger is Attached",  dll_ini,         L"SpecialK.System",       L"WaitForDebugger"),
     ConfigEntry (debug_output,                           L"Print Application's Debug Output in real-time",             dll_ini,         L"SpecialK.System",       L"DebugOutput"),
     ConfigEntry (game_output,                            L"Log Application's Debug Output",                            dll_ini,         L"SpecialK.System",       L"GameOutput"),
-    ConfigEntry (ignore_rtss_delay,                      L"Ignore RTSS Delay Incompatibilities",                       dll_ini,         L"SpecialK.System",       L"IgnoreRTSSHookDelay"),
     ConfigEntry (init_delay,                             L"Delay Global Injection Initialization for x-many Seconds",  dll_ini,         L"SpecialK.System",       L"GlobalInjectDelay"),
     ConfigEntry (return_to_skif,                         L"At Application Exit, make SKIF the new Foreground Window",  dll_ini,         L"SpecialK.System",       L"ReturnToSKIF"),
     ConfigEntry (version,                                L"The last version that wrote the config file",               dll_ini,         L"SpecialK.System",       L"Version"),
@@ -1453,20 +1478,22 @@ auto DeclKeybind =
     ConfigEntry (render.framerate.latent_sync.offset,    L"Offset in Scanlines from Top of Screen to Steer Tearing",   dll_ini,         L"FrameRate.LatentSync",  L"TearlineOffset"),
     ConfigEntry (render.framerate.latent_sync.resync,    L"Frequency (in frames) to Resync Timing",                    dll_ini,         L"FrameRate.LatentSync",  L"ResyncFrequency"),
     ConfigEntry (render.framerate.latent_sync.error,     L"Expected Error (in QPC ticks) of Refresh Rate Calculation", dll_ini,         L"FrameRate.LatentSync",  L"RoundingError"),
-    ConfigEntry (render.framerate.latent_sync.adaptive,  L"Allow tearing if framerate is below target FPS",            dll_ini,         L"FrameRate.LatentSync",  L"AdaptiveSync"),
     ConfigEntry (render.framerate.latent_sync.bias,      L"Controls Distribution of Idle Time Per-Delayed Frame",      dll_ini,         L"FrameRate.LatentSync",  L"DelayBias"),
 
     ConfigEntry (render.framerate.allow_dwm_tearing,     L"Enable DWM Tearing (Windows 10+)",                          dll_ini,         L"Render.DXGI",           L"AllowTearingInDWM"),
     ConfigEntry (render.framerate.drop_late_frames,      L"Enable Flip Model to Render (and drop) frames at rates >"
                                                          L"refresh rate with VSYNC enabled (similar to NV Fast Sync).",dll_ini,         L"Render.DXGI",           L"DropLateFrames"),
-    ConfigEntry (render.framerate.auto_low_latency,      L"If G-Sync is seen supported, automatically change limiter"
-                                                         L" mode to low-latency.",                                     dll_ini,         L"Render.DXGI",           L"AutoLowLatency"),
+    ConfigEntry (render.framerate.auto_low_latency,      L"If G-Sync is seen supported, automatically optimize the"
+                                                         L"limiter for low-latency.",                                  dll_ini,         L"Render.DXGI",           L"AutoLowLatency"),
+    ConfigEntry (render.framerate.auto_low_latency_ex,   L"Auto Low-Latency Mode may add stutter to get lower latency",input_ini,       L"Input.AutoLowLatency",  L"UltraLowLatency"),
+    ConfigEntry (render.framerate.auto_low_latency_optin,L"Global policy applied when starting a game the first time", input_ini,       L"Input.AutoLowLatency",  L"DefaultPolicy"),
 
     ConfigEntry (nvidia.reflex.enable,                   L"Enable NVIDIA Reflex Integration w/ SK's limiter",          dll_ini,         L"NVIDIA.Reflex",         L"Enable"),
     ConfigEntry (nvidia.reflex.low_latency,              L"Low Latency Mode",                                          dll_ini,         L"NVIDIA.Reflex",         L"LowLatency"),
     ConfigEntry (nvidia.reflex.low_latency_boost,        L"Reflex Boost (lower-latency power scaling)",                dll_ini,         L"NVIDIA.Reflex",         L"LowLatencyBoost"),
     ConfigEntry (nvidia.reflex.marker_optimization,      L"Train Reflex using Latency Markers for Optimization",       dll_ini,         L"NVIDIA.Reflex",         L"OptimizeByMarkers"),
     ConfigEntry (nvidia.reflex.engagement_policy,        L"When to apply Reflex's magic",                              dll_ini,         L"NVIDIA.Reflex",         L"EngagementPolicy"),
+    ConfigEntry (nvidia.reflex.override_native,          L"Use SK's Reflex Mode options instead of the game's",        dll_ini,         L"NVIDIA.Reflex",         L"OverrideNativeMode"),
 
     ConfigEntry (render.hdr.enable_32bpc,                L"Experimental - Use 32bpc for HDR",                          dll_ini,         L"SpecialK.HDR",          L"Enable128BitPipeline"),
 
@@ -1526,6 +1553,7 @@ auto DeclKeybind =
     ConfigEntry (render.dxgi.temporary_dwm_hdr,          L"Temporarily Enable DWM-based HDR while the game runs",      dll_ini,         L"Render.DXGI",           L"TemporaryDesktopHDRMode"),
     ConfigEntry (render.dxgi.disable_virtual_vbi,        L"Disable Dynamic Refresh Rate (VBLANK Virtualization)",      dll_ini,         L"Render.DXGI",           L"DisableVirtualizedBlanking"),
     ConfigEntry (render.dxgi.clear_buffers_after_flip,   L"Clear the SwapChain Backbuffer every frame",                dll_ini,         L"Render.DXGI",           L"ClearFlipModelBackbuffers"),
+    ConfigEntry (render.dxgi.warn_if_vram_exceeds,       L"Warn if VRAM used exceeds this % of available VRAM",        dll_ini,         L"Render.DXGI",           L"WarnIfUsedVRAMPercentExceeds"),
 
     ConfigEntry (texture.d3d9.clamp_lod_bias,            L"Clamp Negative LOD Bias",                                   dll_ini,         L"Textures.D3D9",         L"ClampNegativeLODBias"),
     ConfigEntry (texture.d3d11.cache,                    L"Cache Textures",                                            dll_ini,         L"Textures.D3D11",        L"Cache"),
@@ -1583,6 +1611,9 @@ auto DeclKeybind =
     ConfigEntry (scheduling.priority.raise_in_bg,        L"Boost process priority to Highest in Background",           dll_ini,         L"Scheduler.Boost",       L"RaisePriorityInBackground"),
     ConfigEntry (scheduling.priority.raise_in_fg,        L"Boost process priority to Highest in Foreground",           dll_ini,         L"Scheduler.Boost",       L"RaisePriorityInForeground"),
     ConfigEntry (scheduling.priority.deny_foreign_change,L"Do not allow third-party apps to change priority",          dll_ini,         L"Scheduler.Boost",       L"DenyForeignChanges"),
+    ConfigEntry (scheduling.priority.min_render_priority,L"Minimum priority for a game's render thread",               dll_ini,         L"Scheduler.Boost",       L"MinimumRenderThreadPriority"),
+
+    ConfigEntry (sound.minimize_latency,                 L"Minimize Audio Latency while Game is Running",              dll_ini,         L"Sound.Mixing",          L"MinimizeLatency"),
 
 
     // Control the behavior of SKIF rather than the other way around
@@ -2344,6 +2375,7 @@ auto DeclKeybind =
 
       case SK_GAME_ID::BaldursGate3:
         config.compatibility.impersonate_debugger = true;
+        config.apis.NvAPI.vulkan_bridge           = 1;
         break;
 
       case SK_GAME_ID::Persona4:
@@ -2402,6 +2434,10 @@ auto DeclKeybind =
       {
         config.render.dxgi.ignore_thread_flags   =  true;
         config.threads.enable_dynamic_spinlocks  =  true;
+
+        // Game tries to get an R8_UNORM view of the SwapChain,
+        //   this would normally trigger a warning in SK.
+        config.render.dxgi.suppress_rtv_mismatch =  true;
 
         // Defaults for latency an framepacing; important
         config.render.framerate.sleepless_render =  true;
@@ -2737,10 +2773,10 @@ auto DeclKeybind =
 
         // Disable GPU power saving mode using Reflex, otherwise game stutters
         //
-        config.nvidia.sleep.enable                   =  true;
-        config.nvidia.sleep.enforcement_site         =     2;
-        config.nvidia.sleep.low_latency              =  true;
-        config.nvidia.sleep.low_latency_boost        =  true;
+        config.nvidia.reflex.enable                   =  true;
+        config.nvidia.reflex.enforcement_site         =     2;
+        config.nvidia.reflex.low_latency              =  true;
+        config.nvidia.reflex.low_latency_boost        =  true;
       } break;
 
 
@@ -2786,10 +2822,10 @@ auto DeclKeybind =
         config.input.keyboard.catch_alt_f4           =  true;
         config.input.keyboard.override_alt_f4        =  true;
 
-        config.nvidia.sleep.enable                   =  true;
-        config.nvidia.sleep.enforcement_site         =     2;
-        config.nvidia.sleep.low_latency              =  true;
-        config.nvidia.sleep.low_latency_boost        =  true;
+        config.nvidia.reflex.enable                   =  true;
+        config.nvidia.reflex.enforcement_site         =     2;
+        config.nvidia.reflex.low_latency              =  true;
+        config.nvidia.reflex.low_latency_boost        =  true;
 
         config.system.suppress_crashes               =  true;
 
@@ -3001,6 +3037,21 @@ auto DeclKeybind =
         config.window.borderless      = true;
         config.window.fullscreen      = true;
         break;
+
+      case SK_GAME_ID::NoMansSky:
+        config.apis.NvAPI.vulkan_bridge = 1;
+        break;
+
+      case SK_GAME_ID::DiabloIV:
+        config.window.dont_hook_wndproc = true;
+        break;
+
+      case SK_GAME_ID::CallOfDuty:
+        // Disable D3D9 and D3D12 for OpenGL-IK to take precedence
+        config.apis.d3d9.hook       = false;
+        config.apis.d3d9ex.hook     = false;
+        config.apis.dxgi.d3d12.hook = false;
+        break;
     }
   }
 
@@ -3030,16 +3081,12 @@ auto DeclKeybind =
   if (! apis.d3d11.hook->load  (config.apis.dxgi.d3d11.hook))
     config.apis.dxgi.d3d11.hook = true;
 
-#ifdef _M_AMD64
   if (apis.d3d12.hook->load (config.apis.dxgi.d3d12.hook))
   {
     // We need to enable D3D11 hooking for D3D12 to work reliably
     if (config.apis.dxgi.d3d12.hook)
         config.apis.dxgi.d3d11.hook = true;
   }
-#else
-  config.apis.dxgi.d3d12.hook = false;
-#endif
 
   if (! apis.OpenGL.hook->load (config.apis.OpenGL.hook))
     config.apis.OpenGL.hook = true;
@@ -3152,6 +3199,7 @@ auto DeclKeybind =
   display.confirm_mode_changes->load        (config.display.confirm_mode_changes);
   display.save_monitor_prefs->load          (config.display.save_monitor_prefs);
   display.save_resolution->load             (config.display.resolution.save);
+  display.warn_no_mpo_planes->load          (config.display.warn_no_mpo_planes);
 
   if (config.display.resolution.save)
   {
@@ -3166,6 +3214,8 @@ auto DeclKeybind =
     {
       ;
     }
+
+    display.override_refresh->load (config.display.refresh_rate);
   }
 
   if (config.apis.NvAPI.vulkan_bridge)
@@ -3189,7 +3239,6 @@ auto DeclKeybind =
   render.framerate.latent_sync.offset->load   (config.render.framerate.latent_sync.scanline_offset);
   render.framerate.latent_sync.resync->load   (config.render.framerate.latent_sync.scanline_resync);
   render.framerate.latent_sync.error->load    (config.render.framerate.latent_sync.scanline_error);
-  render.framerate.latent_sync.adaptive->load (config.render.framerate.latent_sync.adaptive_sync);
   render.framerate.latent_sync.bias->load     (config.render.framerate.latent_sync.delay_bias);
 
 
@@ -3207,11 +3256,12 @@ auto DeclKeybind =
   nvidia.sli.num_gpus->load                  (config.nvidia.sli.num_gpus);
   nvidia.sli.override->load                  (config.nvidia.sli.override);
 
-  nvidia.reflex.enable->load                 (config.nvidia.sleep.enable);
-  nvidia.reflex.low_latency->load            (config.nvidia.sleep.low_latency);
-  nvidia.reflex.low_latency_boost->load      (config.nvidia.sleep.low_latency_boost);
-  nvidia.reflex.marker_optimization->load    (config.nvidia.sleep.marker_optimization);
-  nvidia.reflex.engagement_policy->load      (config.nvidia.sleep.enforcement_site);
+  nvidia.reflex.enable->load                 (config.nvidia.reflex.enable);
+  nvidia.reflex.low_latency->load            (config.nvidia.reflex.low_latency);
+  nvidia.reflex.low_latency_boost->load      (config.nvidia.reflex.low_latency_boost);
+  nvidia.reflex.marker_optimization->load    (config.nvidia.reflex.marker_optimization);
+  nvidia.reflex.engagement_policy->load      (config.nvidia.reflex.enforcement_site);
+  nvidia.reflex.override_native->load        (config.nvidia.reflex.override);
 
   render.hdr.enable_32bpc->load              (config.render.hdr.enable_32bpc);
 
@@ -3249,6 +3299,7 @@ auto DeclKeybind =
   scheduling.priority.raise_in_bg->load         (config.priority.raise_bg);
   scheduling.priority.raise_in_fg->load         (config.priority.raise_fg);
   scheduling.priority.deny_foreign_change->load (config.priority.deny_foreign_change);
+  scheduling.priority.min_render_priority->load (config.priority.minimum_render_prio);
 
   if (config.priority.raise_always)
     SetPriorityClass (GetCurrentProcess (), ABOVE_NORMAL_PRIORITY_CLASS);
@@ -3284,21 +3335,25 @@ auto DeclKeybind =
   //
   render.framerate.max_delta_time->load   (config.render.framerate.max_delta_time);
 
-
   if (render.framerate.flip_discard->load (config.render.framerate.flip_discard) && config.render.framerate.flip_discard)
   {
     config.render.framerate.disable_flip = false;
-
-    if (render.framerate.allow_dwm_tearing->load (config.render.dxgi.allow_tearing))
-    {
-      //if (config.render.dxgi.allow_tearing) config.render.framerate.flip_discard = true;
-    }
   }
 
-  render.framerate.flip_sequential->load (config.render.framerate.flip_sequential);
+  render.framerate.allow_dwm_tearing->load (config.render.dxgi.allow_tearing);
+  render.framerate.flip_sequential->load   (config.render.framerate.flip_sequential);
 
-  render.framerate.drop_late_frames->load (config.render.framerate.drop_late_flips);
-  render.framerate.auto_low_latency->load (config.render.framerate.auto_low_latency);
+  render.framerate.drop_late_frames->load  (config.render.framerate.drop_late_flips);
+  render.framerate.auto_low_latency_optin->
+                                     load  (config.render.framerate.auto_low_latency_opt);
+
+  bool auto_low_latency_preset =
+  render.framerate.auto_low_latency->load  (config.render.framerate.auto_low_latency);
+  render.framerate.auto_low_latency_ex->
+                                     load  (config.render.framerate.auto_low_latency_ex);
+
+  if (! auto_low_latency_preset)
+    config.render.framerate.auto_low_latency = config.render.framerate.auto_low_latency_opt;
 
   if (render.framerate.disable_flip_model->load (config.render.framerate.disable_flip))
   {
@@ -3464,6 +3519,7 @@ auto DeclKeybind =
                                     load (config.render.dxgi.clear_flipped_chain);
   render.dxgi.enable_factory_cache->load (config.render.dxgi.use_factory_cache);
   render.dxgi.skip_redundant_modes->load (config.render.dxgi.skip_mode_changes);
+  render.dxgi.warn_if_vram_exceeds->load (config.render.dxgi.warn_if_vram_exceeds);
 
   texture.d3d11.cache->load              (config.textures.d3d11.cache);
   texture.d3d11.precise_hash->load       (config.textures.d3d11.precise_hash);
@@ -3842,7 +3898,8 @@ auto DeclKeybind =
     // No preference established, so handle should be null
     else if ( config.display.monitor_idx   == 0 )
     {         config.display.monitor_handle = 0;
-      if ( !  config.display.resolution.override.isZero () )
+      if ( (! config.display.resolution.override.isZero ()) ||
+              config.display.refresh_rate > 0.0f )
       {
         EnumDisplayMonitors ( nullptr,
                               nullptr,
@@ -3873,6 +3930,58 @@ auto DeclKeybind =
     }
   }
 
+  class DisplayListener : public SK_IVariableListener
+  {
+  public:
+    DisplayListener (void)
+    {
+      auto cmd =
+        SK_GetCommandProcessor ();
+
+      cmd->AddVariable ( "Display.RefreshRate",
+        SK_CreateVar (SK_IVariable::Float, &config.display.refresh_rate, this)
+      );
+    }
+
+    virtual bool OnVarChange (SK_IVariable* var, void* val = nullptr)
+    {
+      if (val != nullptr && var != nullptr )
+      {
+        if (var->getValuePointer () == &config.display.refresh_rate)
+        {
+          float refresh = *(float *)val;
+
+          refresh =
+            std::clamp (refresh, 0.0f, 1000.0f);
+
+          MONITORINFOEXW
+            mi = { };
+            mi.cbSize = sizeof (MONITORINFOEXW);
+
+          // Remove any overrides
+          if (refresh == 0.0f)
+          {
+            config.display.refresh_rate = 0.0f;
+            return true;
+          }
+
+          if (GetMonitorInfoW (rb.monitor, &mi))
+          {
+            float original =
+              std::exchange (config.display.refresh_rate, refresh);
+
+            if (SK_Display_ApplyDesktopResolution (mi))
+              return true;
+
+            // Oh no!
+            config.display.refresh_rate = original;
+          }
+        }
+      }
+
+      return true;
+    }
+  } static display_control;
 
   if (((sk::iParameter *)window.override)->load ())
   {
@@ -3958,6 +4067,8 @@ auto DeclKeybind =
   dpi.disable->load                 (config.dpi.disable_scaling);
   dpi.per_monitor_aware->load       (config.dpi.per_monitor.aware);
   dpi.per_monitor_all_threads->load (config.dpi.per_monitor.aware_on_all_threads);
+
+  sound.minimize_latency->load      (config.sound.minimize_latency);
 
   platform.achievements.play_sound->load         (config.platform.achievements.play_sound);
   platform.achievements.sound_file->load         (config.platform.achievements.sound_file);
@@ -4092,6 +4203,10 @@ auto DeclKeybind =
   LoadKeybind (&config.render.framerate.latent_sync.timing_resync_keybind);
   LoadKeybind (&config.render.framerate.latent_sync.toggle_fcat_bars_keybind);
 
+  LoadKeybind (&config.sound.game_mute_keybind);
+  LoadKeybind (&config.sound.game_volume_up_keybind);
+  LoadKeybind (&config.sound.game_volume_down_keybind);
+
 
   if (config.steam.dll_path.empty ())
   {
@@ -4166,7 +4281,6 @@ auto DeclKeybind =
   strict_compliance->load (config.system.strict_compliance);
   log_level->load         (config.system.log_level);
   prefer_fahrenheit->load (config.system.prefer_fahrenheit);
-  ignore_rtss_delay->load (config.system.ignore_rtss_delay);
   handle_crashes->load    (config.system.handle_crashes);
   silent_crash->load      (config.system.silent_crash);
   crash_suppression->load (config.system.suppress_crashes);
@@ -4604,9 +4718,9 @@ SK_SaveConfig ( std::wstring name,
   apis.d3d9ex.hook->store                     (config.apis.d3d9ex.hook);
   apis.dxvk9.enable->store                    (config.apis.d3d9.native_dxvk);
   apis.d3d11.hook->store                      (config.apis.dxgi.d3d11.hook);
+  apis.d3d12.hook->store                      (config.apis.dxgi.d3d12.hook);
   apis.OpenGL.hook->store                     (config.apis.OpenGL.hook);
 #ifdef _M_AMD64
-  apis.d3d12.hook->store                      (config.apis.dxgi.d3d12.hook);
   apis.Vulkan.hook->store                     (config.apis.Vulkan.hook);
 #endif
 
@@ -4777,6 +4891,7 @@ SK_SaveConfig ( std::wstring name,
   display.confirm_mode_changes->store         (config.display.confirm_mode_changes);
   display.save_monitor_prefs->store           (config.display.save_monitor_prefs);
   display.save_resolution->store              (config.display.resolution.save);
+  display.warn_no_mpo_planes->store           (config.display.warn_no_mpo_planes);
 
   if ((! config.display.resolution.override.isZero ()) || config.display.resolution.save)
   {
@@ -4786,11 +4901,13 @@ SK_SaveConfig ( std::wstring name,
                        std::format ( L"{}x{}", config.display.resolution.override.x,
                                                config.display.resolution.override.y )
       );
+      display.override_refresh->store         (config.display.refresh_rate);
     }
 
     else
     {
       display.override_resolution->store (L"0x0");
+      display.override_refresh->store    (  0.0f);
     }
   }
 
@@ -4814,6 +4931,7 @@ SK_SaveConfig ( std::wstring name,
     scheduling.priority.raise_in_bg->store         (config.priority.raise_bg);
     scheduling.priority.raise_in_fg->store         (config.priority.raise_fg);
     scheduling.priority.deny_foreign_change->store (config.priority.deny_foreign_change);
+    scheduling.priority.min_render_priority->store (config.priority.minimum_render_prio);
 
     if (render.framerate.rescan_ratio != nullptr)
     {
@@ -4846,7 +4964,6 @@ SK_SaveConfig ( std::wstring name,
     render.framerate.latent_sync.offset->store    (config.render.framerate.latent_sync.scanline_offset);
     render.framerate.latent_sync.resync->store    (config.render.framerate.latent_sync.scanline_resync);
     render.framerate.latent_sync.error->store     (config.render.framerate.latent_sync.scanline_error);
-    render.framerate.latent_sync.adaptive->store  (config.render.framerate.latent_sync.adaptive_sync);
     render.framerate.latent_sync.bias->store      (config.render.framerate.latent_sync.delay_bias);
 
     texture.d3d9.clamp_lod_bias->store            (config.textures.clamp_lod_bias);
@@ -4862,16 +4979,19 @@ SK_SaveConfig ( std::wstring name,
     }
 
     render.framerate.auto_low_latency->store      (config.render.framerate.auto_low_latency);
+    render.framerate.auto_low_latency_ex->store   (config.render.framerate.auto_low_latency_ex);
+    render.framerate.auto_low_latency_optin->store(config.render.framerate.auto_low_latency_opt);
 
     if (  SK_IsInjected ()                       ||
         ( SK_GetDLLRole () & DLL_ROLE::DInput8 ) ||
         ( SK_GetDLLRole () & DLL_ROLE::DXGI    ) )
     {
-      nvidia.reflex.enable->store                 (config.nvidia.sleep.enable);
-      nvidia.reflex.low_latency->store            (config.nvidia.sleep.low_latency);
-      nvidia.reflex.low_latency_boost->store      (config.nvidia.sleep.low_latency_boost);
-      nvidia.reflex.engagement_policy->store      (config.nvidia.sleep.enforcement_site);
-      nvidia.reflex.marker_optimization->store    (config.nvidia.sleep.marker_optimization);
+      nvidia.reflex.enable->store                 (config.nvidia.reflex.enable);
+      nvidia.reflex.low_latency->store            (config.nvidia.reflex.low_latency);
+      nvidia.reflex.low_latency_boost->store      (config.nvidia.reflex.low_latency_boost);
+      nvidia.reflex.engagement_policy->store      (config.nvidia.reflex.enforcement_site);
+      nvidia.reflex.marker_optimization->store    (config.nvidia.reflex.marker_optimization);
+      nvidia.reflex.override_native->store        (config.nvidia.reflex.override);
       render.framerate.max_delta_time->store      (config.render.framerate.max_delta_time);
       render.framerate.flip_discard->store        (config.render.framerate.flip_discard);
       render.framerate.flip_sequential->store     (config.render.framerate.flip_sequential);
@@ -4973,6 +5093,7 @@ SK_SaveConfig ( std::wstring name,
                                         store (config.render.dxgi.clear_flipped_chain);
       render.dxgi.enable_factory_cache->store (config.render.dxgi.use_factory_cache);
       render.dxgi.skip_redundant_modes->store (config.render.dxgi.skip_mode_changes);
+      render.dxgi.warn_if_vram_exceeds->store (config.render.dxgi.warn_if_vram_exceeds);
     }
 
     if ( SK_IsInjected () || ( SK_GetDLLRole () & DLL_ROLE::D3D9    ) ||
@@ -5034,6 +5155,8 @@ SK_SaveConfig ( std::wstring name,
   dpi.disable->store                              (config.dpi.disable_scaling);
   dpi.per_monitor_aware->store                    (config.dpi.per_monitor.aware);
   dpi.per_monitor_all_threads->store              (config.dpi.per_monitor.aware_on_all_threads);
+
+  sound.minimize_latency->store                   (config.sound.minimize_latency);
 
 
   platform.achievements.sound_file->store         (config.platform.achievements.sound_file);
@@ -5114,8 +5237,6 @@ SK_SaveConfig ( std::wstring name,
 
   nvidia.api.disable->store                    (! config.apis.NvAPI.enable);
   amd.adl.disable->store                       (! config.apis.ADL.enable);
-
-  ignore_rtss_delay->store                     (config.system.ignore_rtss_delay);
 
 
   // Don't store this setting at shutdown  (it may have been turned off automatically)
@@ -6465,10 +6586,10 @@ SK_Render_GetAPIHookMask (void)
   if (config.apis.d3d9.hook)       mask |= static_cast <int> (SK_RenderAPI::D3D9);
   if (config.apis.d3d9ex.hook)     mask |= static_cast <int> (SK_RenderAPI::D3D9Ex);
   if (config.apis.dxgi.d3d11.hook) mask |= static_cast <int> (SK_RenderAPI::D3D11);
+  if (config.apis.dxgi.d3d12.hook) mask |= static_cast <int> (SK_RenderAPI::D3D12);
   if (config.apis.OpenGL.hook)     mask |= static_cast <int> (SK_RenderAPI::OpenGL);
 #ifdef _M_AMD64
   if (config.apis.Vulkan.hook)     mask |= static_cast <int> (SK_RenderAPI::Vulkan);
-  if (config.apis.dxgi.d3d12.hook) mask |= static_cast <int> (SK_RenderAPI::D3D12);
 #endif
 
   return

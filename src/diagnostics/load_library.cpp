@@ -482,11 +482,11 @@ SK_TraceLoadLibrary (       HMODULE hCallingMod,
               ( StrStrI  (lpFileName, SK_TEXT("dxcore.dll")) || // Unity?! WTF are you doing?
                 StrStrIW (wszModName,        L"dxcore.dll") ))
       SK_RunOnce (SK_BootDXGI   ())
-#ifdef _M_AMD64
     else if ( (! (SK_GetDLLRole () & DLL_ROLE::DXGI)) && config.apis.dxgi.d3d12.hook &&
               ( StrStrI  (lpFileName, SK_TEXT("d3d12.dll")) ||
                 StrStrIW (wszModName,        L"d3d12.dll") ))
       SK_RunOnce (SK_BootDXGI   ())
+#ifdef _M_AMD64
     else if (   StrStrI  (lpFileName, SK_TEXT("vulkan-1.dll")) ||
                 StrStrIW (wszModName,        L"vulkan-1.dll")  )
       SK_RunOnce (SK_BootVulkan ())
@@ -1712,7 +1712,6 @@ SK_BootModule (const wchar_t* wszModName)
       loaded_dxgi = true;
     }
 
-#ifdef _M_AMD64
     else if ( config.apis.dxgi.d3d12.hook && StrStrIW (wszModName, L"d3d12.dll") &&
                         (SK_IsInjected () || (! (SK_GetDLLRole () & DLL_ROLE::DXGI))) )
     {
@@ -1720,7 +1719,6 @@ SK_BootModule (const wchar_t* wszModName)
 
       loaded_dxgi = true;
     }
-#endif
 
     else if ( config.apis.d3d9.hook && StrStrIW (wszModName, L"d3d9.dll") &&
                   (SK_IsInjected () || (! (SK_GetDLLRole () & DLL_ROLE::D3D9))) )
@@ -2042,7 +2040,11 @@ SK_EnumLoadedModules (SK_ModuleEnum when)
       SetCurrentThreadDescription (L"[SK] DLL Enumerator");
       SetThreadPriority           (GetCurrentThread (), THREAD_PRIORITY_LOWEST);
 
-      SK_WaitForSingleObject (hWalkDone.m_h, INFINITE);
+      if ( WAIT_TIMEOUT ==
+             SK_WaitForSingleObject (hWalkDone.m_h, 1000UL) )
+      {
+        pLogger->Log (L"Timeout during SK_WalkModules, continuing to prevent deadlock...");
+      }
 
       WaitForInit ();
 
@@ -2104,9 +2106,6 @@ SK_EnumLoadedModules (SK_ModuleEnum when)
       {
         CleanupLog (pLogger);
       }
-
-      if (pWorkingSet != nullptr && pWorkingSet->proc != nullptr)
-                SK_SafeCloseHandle (pWorkingSet->proc);
 
       delete
         std::exchange (pWorkingSet, nullptr);

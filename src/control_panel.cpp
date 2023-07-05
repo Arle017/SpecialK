@@ -1112,6 +1112,14 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
            )
         {
           SK_ImGui_ConfirmDisplaySettings (&dirty, display_name, dm_orig);
+
+          if (config.display.resolution.save)
+          {
+            config.display.refresh_rate =
+              static_cast <float> (refresh.modes [refresh.idx].dmDisplayFrequency);
+          }
+
+          config.display.resolution.applied = true;
         }
       }
     }
@@ -1556,7 +1564,7 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
       ImGui::SetTooltip ("Changes to 'Active Monitor' using this menu (not keybinds) will be remembered");
   }
 
-  if (ImGui::Checkbox ("Remember Display Resolution", &config.display.resolution.save))
+  if (ImGui::Checkbox ("Remember Display Mode", &config.display.resolution.save))
   {
     if (config.display.resolution.save)
     {
@@ -1580,32 +1588,70 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
   }
 
   if (ImGui::IsItemHovered ())
-      ImGui::SetTooltip ("Changes to Resolution on 'Active Monitor' will apply to future launches of this game");
+      ImGui::SetTooltip ("Changes to Resolution or Refresh on 'Active Monitor'"
+                         " will apply to future launches of this game");
 
-  ImGui::EndGroup   ();
-  ImGui::SameLine   ();
-  ImGui::BeginGroup ();
-  
-  int mpo_planes =
-    rb.displays [rb.active_display].mpo_planes;
-
+  ImGui::EndGroup    ();
+  ImGui::SameLine    ();
   ImGui::VerticalSeparator ();
-  ImGui::SameLine          ();
+  ImGui::SameLine    ();
+  ImGui::BeginGroup  ();
 
+  auto &display =
+    rb.displays [rb.active_display];
+
+  ImGui::Separator   ();
+  ImGui::BeginGroup  ();
   ImGui::Text        ("MPO Planes: ");
-  ImGui::SameLine ();
+  ImGui::Text        ("HW Scheduling: ");
+  ImGui::Text        ("HW Flip Queue: ");
+  ImGui::EndGroup    ();
+  ImGui::SameLine    ();
+  ImGui::BeginGroup  ();
 
-  if (mpo_planes <= 1)
+  if (display.mpo_planes <= 1)
   {
     ImGui::TextColored ( ImVec4 (1.f, 1.f, 0.f, 1.f), "Unsupported " ICON_FA_EXCLAMATION_TRIANGLE );
   }
 
   else
   {
-    ImGui::TextColored ( ImVec4 (0.f, 1.f, 0.f, 1.f), "%d", mpo_planes );
+    ImGui::TextColored ( ImVec4 (0.f, 1.f, 0.f, 1.f), "%d", display.mpo_planes );
   }
 
-  ImGui::EndGroup   ();
+  auto _PrintEnabled      = [](UINT enabled)
+  {
+    if (enabled != 0)
+      ImGui::TextColored ( ImVec4 (0.f, 1.f, 0.f, 1.f), "On " );
+    else
+      ImGui::TextColored ( ImVec4 (1.f, 1.f, 0.f, 1.f), "Off " );
+  };
+  auto _PrintSupportState = [](UINT state)
+  {
+    switch (state)
+    {
+      default:
+      case DXGK_FEATURE_SUPPORT_ALWAYS_OFF:   ImGui::Text ("(Always Off)");   break;
+      case DXGK_FEATURE_SUPPORT_EXPERIMENTAL: ImGui::Text ("(Experimental)"); break;
+      case DXGK_FEATURE_SUPPORT_STABLE:       ImGui::Text ("(Stable)");       break;
+      case DXGK_FEATURE_SUPPORT_ALWAYS_ON:    ImGui::Text ("(Always On)");    break;
+    };
+  };
+
+  auto _PrintWDDMCapability = [&](UINT Enabled, UINT SupportState)
+  {
+    _PrintEnabled      (Enabled);      ImGui::SameLine ();
+    _PrintSupportState (SupportState);
+  };
+
+  _PrintWDDMCapability (display.wddm_caps._2_9.HwSchEnabled,
+                        display.wddm_caps._2_9.HwSchSupportState);
+
+  _PrintWDDMCapability (display.wddm_caps._3_0.HwFlipQueueEnabled,
+                        display.wddm_caps._3_0.HwFlipQueueSupportState);
+
+  ImGui::EndGroup    ();
+  ImGui::EndGroup    ();
 
   if (ImGui::Checkbox ("Aspect Ratio Stretch", &config.display.aspect_ratio_stretch))
   {
@@ -1646,7 +1692,7 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
     ImGui::BulletText   ("For best results, use the game's internal Windowed"
                          " mode option (not Borderless / Borderless Fullscreen)");
 
-    if (mpo_planes <= 1)
+    if (display.mpo_planes <= 1)
     {
       ImGui::Separator   ();
       ImGui::TextColored ( ImVec4 (1.f, 1.f, 0.f, 1.f),
@@ -1668,8 +1714,8 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
       (float)config.window.res.override.y;
 
     float fNativeAspect =
-      (float)(rb.displays [rb.active_display].rect.right  - rb.displays [rb.active_display].rect.left) /
-      (float)(rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top);
+      (float)(display.rect.right  - display.rect.left) /
+      (float)(display.rect.bottom - display.rect.top);
 
     struct {
       float fAspect;
@@ -1708,72 +1754,72 @@ SK_Display_ResolutionSelectUI (bool bMarkDirty = false)
         case 0:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(5.0f * (config.window.res.override.y / 4.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right - display.rect.left;
             config.window.res.override.y = (int)(4.0f * (config.window.res.override.x / 5.0f));
           }
           break;
         case 1:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(4.0f * (config.window.res.override.y / 3.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right - display.rect.left;
             config.window.res.override.y = (int)(3.0f * (config.window.res.override.x / 4.0f));
           }
           break;
         case 2:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(3.0f * (config.window.res.override.y / 2.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right - display.rect.left;
             config.window.res.override.y = (int)(2.0f * (config.window.res.override.x / 3.0f));
           }
           break;
         case 3:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(16.0f * (config.window.res.override.y / 10.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right - display.rect.left;
             config.window.res.override.y = (int)(10.0f * (config.window.res.override.x / 16.0f));
           }
           break;
         case 4:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(16.0f * (config.window.res.override.y / 9.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right - display.rect.left;
             config.window.res.override.y = (int)(9.0f * (config.window.res.override.x / 16.0f));
           }
           break;
         case 5:
           if (iNativeAspect >= iVirtualAspect)
           {
-            config.window.res.override.y = rb.displays [rb.active_display].rect.bottom - rb.displays [rb.active_display].rect.top;
+            config.window.res.override.y = display.rect.bottom - display.rect.top;
             config.window.res.override.x = (int)(21.0f * (config.window.res.override.y / 9.0f));
           }
           else
           {
-            config.window.res.override.x = rb.displays [rb.active_display].rect.right  - rb.displays [rb.active_display].rect.left;
+            config.window.res.override.x = display.rect.right  - display.rect.left;
             config.window.res.override.y = (int)(9.0f * (config.window.res.override.x / 21.0f));
           }
           break;
@@ -2533,6 +2579,11 @@ DisplayModeMenu (bool windowed)
       }
     }
 
+    if (ImGui::IsItemHovered ())
+    {
+      ImGui::SetTooltip ("Your game should be set to Windowed mode in its graphics settings if you intend to override this mode.");
+    }
+
     ImGui::Separator ();
 
     SK_Display_ResolutionSelectUI ();
@@ -2555,11 +2606,16 @@ SK_NV_LatencyControlPanel (void)
   if (sk::NVAPI::nv_hardware && ( rb.api == SK_RenderAPI::D3D11 ||
                                   rb.api == SK_RenderAPI::D3D12 ))
   {
-    ImGui::Separator  ();
-    ImGui::Text       ("NVIDIA Driver Black Magic");
+    // We don't support NvLL
+    if (                                         rb.api        == SK_RenderAPI::Vulkan ||
+        SK_Render_GetVulkanInteropSwapChainType (rb.swapchain) != SK_DXGI_VK_INTEROP_TYPE_NONE )
+      return;
 
-    if ((! rb.displays [rb.active_display].primary) && config.nvidia.sleep.low_latency
-                                                    && config.nvidia.sleep.enable)
+    ImGui::Separator  ();
+    ImGui::Text       ("NVIDIA Latency Management");
+
+    if ((! rb.displays [rb.active_display].primary) && config.nvidia.reflex.low_latency
+                                                    && config.nvidia.reflex.enable)
     {
       ImGui::SameLine    (                                 );
       ImGui::BeginGroup  (                                 );
@@ -2592,7 +2648,7 @@ SK_NV_GSYNCControlPanel ()
     static auto& rb =
       SK_GetCurrentRenderBackend ();
 
-    SK_RunOnce (rb.gsync_state.disabled = !SK_NvAPI_GetVRREnablement ());
+    SK_RunOnce (rb.gsync_state.disabled.for_app = !SK_NvAPI_GetVRREnablement ());
 
     if (ImGui::BeginPopup ("G-Sync Control Panel"))
     {
@@ -2604,12 +2660,12 @@ SK_NV_GSYNCControlPanel ()
              SK_NvAPI_GetFastSync ();
 
       bool bEnableGSync =
-        (! rb.gsync_state.disabled);
+        (! rb.gsync_state.disabled.for_app);
 
       if (ImGui::Checkbox ("Enable G-Sync in this Game", &bEnableGSync))
       { SK_NvAPI_SetVRREnablement                        (bEnableGSync);
 
-        rb.gsync_state.disabled =
+        rb.gsync_state.disabled.for_app =
           (! bEnableGSync);
 
         ImGui::CloseCurrentPopup ();
@@ -2682,15 +2738,10 @@ SK_ImGui_ControlPanel (void)
 
       ImGui::MenuItem ("Display Active Input APIs",       "", &config.imgui.show_input_apis);
 
-
-      // TEMP HACK: NvAPI does not support G-Sync Status in D3D12
-      if (rb.api != SK_RenderAPI::D3D12)
+      if (config.apis.NvAPI.enable && sk::NVAPI::nv_hardware)
       {
-        if (config.apis.NvAPI.enable && sk::NVAPI::nv_hardware)
-        {
-          //ImGui::TextWrapped ("%hs", SK_NvAPI_GetGPUInfoStr ().c_str ());
-          ImGui::MenuItem    ("Display G-Sync Status",     "", &config.apis.NvAPI.gsync_status);
-        }
+        //ImGui::TextWrapped ("%hs", SK_NvAPI_GetGPUInfoStr ().c_str ());
+        ImGui::MenuItem    ("Display G-Sync Status",     "", &config.apis.NvAPI.gsync_status);
       }
 
       ImGui::MenuItem  ("Display Playtime in Title",     "", &config.platform.show_playtime);
@@ -3037,6 +3088,23 @@ SK_ImGui_ControlPanel (void)
           {
             config.discord.overlay_luminance =
                                     discord_nits * 1.0_Nits;
+
+            SK_SaveConfig ();
+          }
+        }
+
+        if (config.reshade.present)
+        {
+          float reshade_nits =
+            config.reshade.overlay_luminance / 1.0_Nits;
+
+          if ( ImGui::SliderFloat ( "ReShade Overlay Luminance###RESHADE_LUMINANCE",
+                                     &reshade_nits,
+                                      80.0f, rb.display_gamut.maxAverageY,
+                                        (const char *)u8"%.1f cd/m²" ) )
+          {
+            config.reshade.overlay_luminance =
+                                   reshade_nits * 1.0_Nits;
 
             SK_SaveConfig ();
           }
@@ -4016,7 +4084,7 @@ SK_ImGui_ControlPanel (void)
           char szAPIName [32] = {             };
     snprintf ( szAPIName, 32, "%ws",  rb.name );
 
-    // Translation layers (D3D8->11 / DDraw->11 / D3D11On12)
+    // Translation layers (D3D8->11 / D3D8->12 / DDraw->11 / DDraw->12 / D3D11On12)
     auto api_mask = static_cast <int> (rb.api);
 
     bool translated_d3d9 =
@@ -4033,6 +4101,13 @@ SK_ImGui_ControlPanel (void)
     {
       if (! translated_d3d9)lstrcatA (szAPIName, (const char *)   u8"→11");
       else                  strncpy  (szAPIName, (const char *)u8"D3D9→11", 32);
+    }
+
+    else if (0x0 != (api_mask &  static_cast <int> (SK_RenderAPI::D3D12)) &&
+                    (api_mask != static_cast <int> (SK_RenderAPI::D3D12)  || translated_d3d9))
+    {
+      if (! translated_d3d9)lstrcatA (szAPIName, (const char *)   u8"→12");
+      else                  strncpy  (szAPIName, (const char *)u8"D3D9→12", 32);
     }
 
     lstrcatA ( szAPIName,
@@ -4247,30 +4322,19 @@ SK_ImGui_ControlPanel (void)
         if (rb.gsync_state.active)
         {
           strcat (szGSyncStatus, "Active");
-
-          // Opt-in to Auto-Low Latency the first time this is seen
-          if (config.render.framerate.auto_low_latency) {
-              config.render.framerate.enforcement_policy = 2;
-              config.render.framerate.auto_low_latency   = false;
-          }
         }
-        else
+        else if (! rb.gsync_state.maybe_active)
           strcat (szGSyncStatus, "Inactive");
+        else
+          strcat (szGSyncStatus, "Unknown");
       }
 
       else
       {
-        if (! rb.gsync_state.disabled)
-        {
-          strcat ( szGSyncStatus, ( rb.api == SK_RenderAPI::OpenGL ||
-                                    rb.api == SK_RenderAPI::D3D12 ) ?
-                                    "   Unknown in API" : "   Unsupported" );
-        }
-
+        if (rb.gsync_state.disabled.for_app)
+          strcat (szGSyncStatus, "   Disabled in this Game");
         else
-        {
-          strcat ( szGSyncStatus, "   Disabled in this Game");
-        }
+          strcat (szGSyncStatus, "   Unsupported");
       }
 
       ImGui::MenuItem (" G-Sync Status   ", szGSyncStatus, nullptr, true);
@@ -4281,13 +4345,12 @@ SK_ImGui_ControlPanel (void)
         ImGui::SetNextWindowSize (ImVec2 (-1.0f, -1.0f), ImGuiCond_Always);
       }
 
-      if (! rb.gsync_state.disabled)
+      if (rb.gsync_state.maybe_active)
       {
-        if ( (rb.api == SK_RenderAPI::OpenGL ||
-              rb.api == SK_RenderAPI::D3D12) && ImGui::IsItemHovered () )
+        if (ImGui::IsItemHovered ())
         {
           ImGui::SetTooltip (
-            "The NVIDIA driver API does not report this status in OpenGL or D3D12."
+            "The NVIDIA driver API does not report this status in OpenGL, D3D12 or Vulkan."
           );
         }
       }
@@ -4551,7 +4614,7 @@ SK_ImGui_ControlPanel (void)
 
           if (ImGui::BeginPopup      ("FactoredFramerateMenu"))
           {
-            static double dVRRBias = 6.8;
+            static double dVRRBias = 5.0;
             static bool   bVRRBias = false;
 
             static auto lastRefresh = 0.0;
@@ -4619,16 +4682,16 @@ SK_ImGui_ControlPanel (void)
               {
                 config.render.framerate.present_interval = 1;
 
-                if (rb.gsync_state.disabled)
-                {
-                  SK_NvAPI_SetVRREnablement (TRUE);
-                  rb.gsync_state.disabled = false;
-                }
+                //if (rb.gsync_state.disabled)
+                //{
+                //  SK_NvAPI_SetVRREnablement (TRUE);
+                //  rb.gsync_state.disabled = false;
+                //}
               }
 
               else
               {
-                if (! rb.gsync_state.disabled)
+                if (! (rb.gsync_state.disabled.for_app))
                 {
                   ///rb.gsync_state.disabled = true;
                   ///SK_NvAPI_SetVRREnablement (FALSE);
@@ -4859,8 +4922,8 @@ SK_ImGui_ControlPanel (void)
             if (
               ImGui::Combo ( "Mode",
                              &mode, "Normal\0"
-                                    "Low-Latency (VRR Optimized)\0"
-                                    "Latent Sync (VSYNC -Off-)\0\0" )
+                                    "Low-Latency\t(VRR Optimized)\0"
+                                    "Latent Sync\t (VSYNC -Off-)\0\0" )
                )
             {
               switch ((limiter_mode_e)mode)
@@ -4904,7 +4967,7 @@ SK_ImGui_ControlPanel (void)
               ImGui::TextUnformatted
                                   ("Prioritizes Minimum Stutter");
               ImGui::TextUnformatted
-                                  ("Ideal for G-Sync / VRR displays; VRR will compensate for potential stutter");
+                                  ("Ideal for VRR displays; VRR should compensate for potential stutter");
               ImGui::TextUnformatted
                                   ("Ideal for Fixed-Refresh Displays; tearing possible, but location is controlled");
               ImGui::EndGroup     ();
@@ -4932,6 +4995,63 @@ SK_ImGui_ControlPanel (void)
               if (ImGui::IsItemHovered ())
               {
                 ImGui::SetTooltip ("Always Present Newest Frame (DXGI Flip Model)");
+              }
+
+              ImGui::SameLine          ();
+              ImGui::VerticalSeparator ();
+              ImGui::SameLine          ();
+            }
+
+            if (sk::NVAPI::nv_hardware)
+            {
+              ImGui::Checkbox ("Auto VRR Mode", &config.render.framerate.auto_low_latency);
+              if (ImGui::IsItemHovered ())
+              {
+                ImGui::BeginTooltip    ();
+                ImGui::TextUnformatted ("The Framerate Limiter Self-Optimizes When VRR is Detected");
+                ImGui::Separator       ();
+                ImGui::BulletText      ("Limit will be set lower than refresh to remove 1 frame of latency");
+                ImGui::BulletText      ("Games will be prevented from using 1/2, 1/3 or 1/4 Refresh VSYNC");
+                if (config.render.framerate.auto_low_latency_ex)
+                {
+                  ImGui::BulletText    ("NVIDIA Reflex will be set to Low Latency + Boost mode");
+                  ImGui::BulletText    ("Framerate limiter mode will be set to VRR Optimized");
+                }
+                else
+                  ImGui::BulletText      ("NVIDIA Reflex will be set to Low Latency mode");
+                ImGui::TextColored     (ImVec4 (1.f, 1.f, .5f, 1.f), " " ICON_FA_MOUSE);
+                ImGui::SameLine        ();
+                ImGui::TextUnformatted ("Right-click to configure Auto VRR behavior");
+                ImGui::Separator       ();
+                ImGui::TextColored     (ImVec4 (.6f, .6f, 1.f, 1.f), ICON_FA_INFO_CIRCLE);
+                ImGui::SameLine        ();
+                ImGui::TextUnformatted ("This option turns itself off after optimizing the framerate limiter");
+                ImGui::EndTooltip      ();
+              }
+
+              ImGui::OpenPopupOnItemClick ("AutoVRRConfig");
+
+              if (ImGui::BeginPopup ("AutoVRRConfig"))
+              {
+                bool vrr_changed = false;
+
+                vrr_changed |=
+                  ImGui::Checkbox ("Enable By Default", &config.render.framerate.auto_low_latency_opt);
+
+                if (ImGui::IsItemHovered ())
+                  ImGui::SetTooltip ("Controls whether games automatically use this feature");
+
+                vrr_changed |=
+                  ImGui::Checkbox ("Ultra Low-Latency", &config.render.framerate.auto_low_latency_ex);
+
+                if (ImGui::IsItemHovered ())
+                  ImGui::SetTooltip ("Aggressively favor low-latency even if it worsens frame pacing");
+
+                // Turn on Auto-Low Latency after making any changes
+                if (vrr_changed)
+                  config.render.framerate.auto_low_latency = config.render.framerate.auto_low_latency_opt;
+
+                ImGui::EndPopup ();
               }
             }
 
@@ -4981,6 +5101,47 @@ SK_ImGui_ControlPanel (void)
           ImGui::EndGroup   ();
           ImGui::SameLine   (0.0f, 20.0f);
           ImGui::BeginGroup ();
+
+          int min_render_prio = 3;
+
+          switch (config.priority.minimum_render_prio)
+          {
+            case THREAD_PRIORITY_IDLE:          min_render_prio = 0; break;
+            case THREAD_PRIORITY_LOWEST:        min_render_prio = 1; break;
+            case THREAD_PRIORITY_BELOW_NORMAL:  min_render_prio = 2; break;
+            case THREAD_PRIORITY_NORMAL:        min_render_prio = 3; break;
+            default:
+            case THREAD_PRIORITY_ABOVE_NORMAL:  min_render_prio = 4; break;
+            case THREAD_PRIORITY_HIGHEST:       min_render_prio = 5; break;
+            case THREAD_PRIORITY_TIME_CRITICAL: min_render_prio = 6; break;
+          }
+
+          ImGui::PushItemWidth (ImGui::GetContentRegionAvailWidth ());
+
+          if (ImGui::Combo ( "###Render Thread Priority", &min_render_prio,
+                                "Render Priority:\tIdle\0"
+                                "Render Priority:\tLowest\0"
+                                "Render Priority:\tBelow Normal\0"
+                                "Render Priority:\tNormal\0"
+                                "Render Priority:\tAbove Normal\0"
+                                "Render Priority:\tHighest\0"
+                                "Render Priority:\tTime Critical\0\0" ))
+          {
+            switch (min_render_prio)
+            {
+              case 0:  config.priority.minimum_render_prio = THREAD_PRIORITY_IDLE;          break;
+              case 1:  config.priority.minimum_render_prio = THREAD_PRIORITY_LOWEST;        break;
+              case 2:  config.priority.minimum_render_prio = THREAD_PRIORITY_BELOW_NORMAL;  break;
+              case 3:  config.priority.minimum_render_prio = THREAD_PRIORITY_NORMAL;        break;
+              default:
+              case 4:  config.priority.minimum_render_prio = THREAD_PRIORITY_ABOVE_NORMAL;  break;
+              case 5:  config.priority.minimum_render_prio = THREAD_PRIORITY_HIGHEST;       break;
+              case 6:  config.priority.minimum_render_prio = THREAD_PRIORITY_TIME_CRITICAL; break;
+            }
+          }
+
+          ImGui::PopItemWidth ();
+#if 0
           if ( ImGui::Checkbox ( "Use Multimedia Class Scheduling",
                                    &config.render.framerate.enable_mmcss ) )
           {
@@ -4995,6 +5156,7 @@ SK_ImGui_ControlPanel (void)
             ImGui::BulletText   ("Keep this option enabled unless troubleshooting something");
             ImGui::EndTooltip   ();
           }
+#endif
 
           bool spoof =
             ( config.render.framerate.override_num_cpus != -1 );
@@ -5527,7 +5689,10 @@ SK_ImGui_MouseProc (int code, WPARAM wParam, LPARAM lParam)
       {
         io.MouseDown [0] = true;
 
-        if (SK_ImGui_WantMouseCapture ())
+        // Only capture mouse clicks when the window is in the foreground, failure to let
+        //   left-clicks passthrough would prevent activating the game window.
+        if ( SK_ImGui_WantMouseCapture () && game_window.active &&
+                SK_GetForegroundWindow () == game_window.hWnd )
           return 1;
       }
       break;
@@ -6707,6 +6872,8 @@ SK_ImGui_Toggle (void)
          SK_Input_SaveClipRect    ();
          SK_ClipCursor            (&game_window.actual.window);
       }
+      else
+        SK_Input_SaveClipRect     ();
     }
     else SK_Input_RestoreClipRect ();
   }

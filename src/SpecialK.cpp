@@ -120,22 +120,22 @@ SK_DLL_GetBootstraps (void)
     __dll_bootstraps.get () =
     {
       { DLL_ROLE::DXGI,       { { L"dxgi.dll",
-                                  L"d3d11.dll"    },   SK::DXGI::Startup,
-                                                       SK::DXGI::Shutdown } },
+                                  L"d3d11.dll"    }, SK::DXGI::Startup,
+                                                     SK::DXGI::Shutdown   } },
       { DLL_ROLE::D3D11_CASE, { { L"dxgi.dll",
-                                  L"d3d11.dll"    },   SK::DXGI::Startup,
-                                                       SK::DXGI::Shutdown } },
-      { DLL_ROLE::D3D9,       { { L"d3d9.dll"     },   SK::D3D9::Startup,
-                                                       SK::D3D9::Shutdown } },
+                                  L"d3d11.dll"    }, SK::DXGI::Startup,
+                                                     SK::DXGI::Shutdown   } },
+      { DLL_ROLE::D3D9,       { { L"d3d9.dll"     }, SK::D3D9::Startup,
+                                                     SK::D3D9::Shutdown   } },
       { DLL_ROLE::OpenGL,     { { L"OpenGL32.dll" }, SK::OpenGL::Startup,
                                                      SK::OpenGL::Shutdown } },
-      { DLL_ROLE::DInput8,    { { L"dinput8.dll"  },    SK::DI8::Startup,
-                                                        SK::DI8::Shutdown } },
+      { DLL_ROLE::DInput8,    { { L"dinput8.dll"  }, SK::DI8::Startup,
+                                                     SK::DI8::Shutdown    } },
       #ifndef _M_AMD64
-      { DLL_ROLE::D3D8,       { { L"d3d8.dll"     },   SK::D3D8::Startup,
-                                                       SK::D3D8::Shutdown } },
-      { DLL_ROLE::DDraw,      { { L"ddraw.dll"    },  SK::DDraw::Startup,
-                                                      SK::DDraw::Shutdown } },
+      { DLL_ROLE::D3D8,       { { L"d3d8.dll"     }, SK::D3D8::Startup,
+                                                     SK::D3D8::Shutdown   } },
+      { DLL_ROLE::DDraw,      { { L"ddraw.dll"    }, SK::DDraw::Startup,
+                                                     SK::DDraw::Shutdown  } },
       #endif
     };
   }
@@ -849,22 +849,31 @@ _SKM_AutoBootLastKnownAPI (SK_RenderAPI last_known)
     // Bitness:  32-Bit  (Add:  DDraw, D3D8 and Glide)
 
     { SK_RenderAPI::D3D8,
-        { DLL_ROLE::DXGI,           config.apis.d3d8.hook } },
+        { DLL_ROLE::D3D8,           config.apis.d3d8.hook } },
     { SK_RenderAPI::D3D8On11,
-        { DLL_ROLE::DXGI,     config.apis.d3d8.hook   &&
+        { DLL_ROLE::D3D8,     config.apis.d3d8.hook   &&
                               config.apis.dxgi.d3d11.hook } },
+    { SK_RenderAPI::D3D8On12,
+        { DLL_ROLE::D3D8,     config.apis.d3d8.hook   &&
+                              config.apis.dxgi.d3d12.hook } },
 
     { SK_RenderAPI::Glide,
         { DLL_ROLE::Glide,         config.apis.glide.hook } },
     { SK_RenderAPI::GlideOn11,
         { DLL_ROLE::Glide,    config.apis.glide.hook  &&
                               config.apis.dxgi.d3d11.hook } },
+    { SK_RenderAPI::GlideOn12,
+        { DLL_ROLE::Glide,    config.apis.glide.hook  &&
+                              config.apis.dxgi.d3d12.hook } },
 
     { SK_RenderAPI::DDraw,
         { DLL_ROLE::DDraw,         config.apis.ddraw.hook } },
     { SK_RenderAPI::DDrawOn11,
         { DLL_ROLE::DDraw,    config.apis.ddraw.hook  &&
                               config.apis.dxgi.d3d11.hook } },
+    { SK_RenderAPI::DDrawOn12,
+        { DLL_ROLE::DDraw,    config.apis.ddraw.hook  &&
+                              config.apis.dxgi.d3d12.hook } },
 
     { SK_RenderAPI::Vulkan,    { DLL_ROLE::INVALID, false } },
 #else
@@ -873,12 +882,15 @@ _SKM_AutoBootLastKnownAPI (SK_RenderAPI last_known)
 
     { SK_RenderAPI::D3D8,      { DLL_ROLE::INVALID, false } },
     { SK_RenderAPI::D3D8On11,  { DLL_ROLE::INVALID, false } },
+    { SK_RenderAPI::D3D8On12,  { DLL_ROLE::INVALID, false } },
 
     { SK_RenderAPI::Glide,     { DLL_ROLE::INVALID, false } },
     { SK_RenderAPI::GlideOn11, { DLL_ROLE::INVALID, false } },
+    { SK_RenderAPI::GlideOn12, { DLL_ROLE::INVALID, false } },
 
     { SK_RenderAPI::DDraw,     { DLL_ROLE::INVALID, false } },
     { SK_RenderAPI::DDrawOn11, { DLL_ROLE::INVALID, false } },
+    { SK_RenderAPI::DDrawOn12, { DLL_ROLE::INVALID, false } },
 
     { SK_RenderAPI::Vulkan,
         { DLL_ROLE::Vulkan,       config.apis.Vulkan.hook } },
@@ -1322,6 +1334,7 @@ SK_EstablishDllRole (skWin32Module&& _sk_module)
           config.render.dxgi.skip_mode_changes = true;
 
           config.apis.dxgi.d3d11.hook = true;
+          config.apis.dxgi.d3d12.hook = true;
 
           SK_SetDLLRole (DLL_ROLE::D3D8);
         }
@@ -1337,6 +1350,7 @@ SK_EstablishDllRole (skWin32Module&& _sk_module)
           config.render.dxgi.skip_mode_changes = true;
 
           config.apis.dxgi.d3d11.hook = true;
+          config.apis.dxgi.d3d12.hook = true;
 
           SK_SetDLLRole (DLL_ROLE::DDraw);
         }
@@ -1402,22 +1416,18 @@ SK_EstablishDllRole (skWin32Module&& _sk_module)
         //
         else
         {
-#ifdef _M_AMD64
           if (config.apis.dxgi.d3d11.hook ||
               config.apis.dxgi.d3d12.hook)
             SK_SetDLLRole (DLL_ROLE::DXGI);
-#else
-          if (config.apis.dxgi.d3d11.hook)
-            SK_SetDLLRole (DLL_ROLE::DXGI);
-#endif
+          else if (config.apis.d3d9.hook  ||
+              config.apis.d3d9ex.hook)
+            SK_SetDLLRole (DLL_ROLE::D3D9);
           else if (config.apis.OpenGL.hook)
             SK_SetDLLRole (DLL_ROLE::OpenGL);
 #ifdef _M_AMD64
           else if (config.apis.Vulkan.hook)
             SK_SetDLLRole (DLL_ROLE::Vulkan);
 #else
-          else if (config.apis.d3d9.hook  || config.apis.d3d9ex.hook)
-            SK_SetDLLRole (DLL_ROLE::D3D9);
           else if (config.apis.d3d8.hook && has_dgvoodoo)
             SK_SetDLLRole (DLL_ROLE::D3D8);
           else if (config.apis.ddraw.hook && has_dgvoodoo)

@@ -284,6 +284,15 @@ extern HRESULT
                             _In_ INT                   BaseVertexLocation,
                             _In_ D3D11_DrawIndexed_pfn pfnD3D11DrawIndexed );
 
+extern HRESULT
+  SK_D3D11_Inject_ReShadeHDR ( _In_ ID3D11DeviceContext           *pDevCtx,
+                               _In_ UINT                           IndexCountPerInstance,
+                               _In_ UINT                           InstanceCount,
+                               _In_ UINT                           StartIndexLocation,
+                               _In_ INT                            BaseVertexLocation,
+                               _In_ UINT                           StartInstanceLocation,
+                               _In_ D3D11_DrawIndexedInstanced_pfn pfnD3D11DrawIndexedInstanced );
+
 extern bool SK_D3D11_ShowShaderModDlg (void);
 
 LPVOID pfnD3D11CreateDevice             = nullptr;
@@ -1259,13 +1268,16 @@ SK_D3D11Dev_CreateRenderTargetView_Impl (
 
                     else
                     {
-                      SK_RunOnce (
-                        SK_ImGui_Warning (
-                          SK_FormatStringW (L"Incompatible SwapChain RTV Format Requested: %hs = %hs ??",
-                                           SK_DXGI_FormatToStr (    desc.Format).data (),
-                                           SK_DXGI_FormatToStr (tex_desc.Format).data ()).c_str ()
-                                         )
-                                 );
+                      if (! config.render.dxgi.suppress_rtv_mismatch)
+                      {
+                        SK_RunOnce (
+                          SK_ImGui_Warning (
+                            SK_FormatStringW (L"Incompatible SwapChain RTV Format Requested: %hs = %hs ??",
+                                             SK_DXGI_FormatToStr (    desc.Format).data (),
+                                             SK_DXGI_FormatToStr (tex_desc.Format).data ()).c_str ()
+                                           )
+                                   );
+                      }
                     }
                   }
 
@@ -1356,14 +1368,21 @@ SK_D3D11_UpdateSubresource_Impl (
     pDstResource->GetDevice (&pResourceDevice.p);
     if (! SK_D3D11_EnsureMatchingDevices (pDevCtx, pResourceDevice))
     {
-      if (pDevCtx->GetType () == D3D11_DEVICE_CONTEXT_IMMEDIATE)
-      {
-        pResourceDevice->GetImmediateContext (&pDevCtx);
-        _Finish ();                            pDevCtx->Release ();
-      }
+      SK_RunOnce (
+        SK_LOGi0 (L"UpdateSubresource (...) called on a resource belonging "
+                  L"to a different device")
+      );
 
-      else
-        return;
+      if (bWrapped)
+      {
+        if (pDevCtx->GetType () == D3D11_DEVICE_CONTEXT_IMMEDIATE)
+        {
+          pResourceDevice->GetImmediateContext (&pDevCtx);
+          _Finish ();                            pDevCtx->Release ();
+
+          return;
+        }
+      }
     }
   }
 
@@ -1846,10 +1865,12 @@ SK_D3D11_CopySubresourceRegion_Impl (
 
               // No dimension mismatches allowed
               SK_ReleaseAssert ( pSrcBox == nullptr ||
-                                (pSrcBox->left   == 0             &&
-                                 pSrcBox->top    == 0             &&
-                                 pSrcBox->right  == srcDesc.Width &&
-                                 pSrcBox->bottom == srcDesc.Height) );
+                                // We can scissor this to implement the copy,
+                                // but only if the dimensions are sane...
+                                (pSrcBox->left   >= 0             &&
+                                 pSrcBox->top    >= 0             &&
+                                 pSrcBox->right  <= srcDesc.Width &&
+                                 pSrcBox->bottom <= srcDesc.Height) );
 
               SK_RunOnce (
                 SK_LOGi0 (
@@ -1862,10 +1883,7 @@ SK_D3D11_CopySubresourceRegion_Impl (
               // NOTE: This does not replicate the actual -sub- region part of the
               //         API and will probably break things if it's ever relied on.
 
-              extern bool SK_D3D11_BltCopySurface ( ID3D11Texture2D* pSrcTex,
-                                                    ID3D11Texture2D* pDstTex );
-
-              if (SK_D3D11_BltCopySurface (pSrcTex, pDstTex))
+              if (SK_D3D11_BltCopySurface (pSrcTex, pDstTex, pSrcBox))
                 return;
             }
           }
@@ -2319,9 +2337,6 @@ SK_D3D11_CopyResource_Impl (
                FAILED (SK_D3D11_CheckResourceFormatManipulation (pDstTex, dstDesc.Format)) ||
                FAILED (SK_D3D11_CheckResourceFormatManipulation (pSrcTex, srcDesc.Format)) )
           {
-            extern bool SK_D3D11_BltCopySurface ( ID3D11Texture2D* pSrcTex,
-                                                  ID3D11Texture2D* pDstTex );
-
             if ( srcDesc.Width  != dstDesc.Width ||
                  srcDesc.Height != dstDesc.Height )
             {
@@ -3861,18 +3876,11 @@ bool
 SK_D3D11_IgnoreWrappedOrDeferred ( bool                 bWrapped,
                                    ID3D11DeviceContext* pDevCtx )
 {
-         const bool  bDeferred  =   SK_D3D11_IsDevCtxDeferred (pDevCtx);
-  static const bool& bIsolation = config.render.dxgi.deferred_isolation;
-
-  if (  (  bDeferred  && (! bIsolation) ) ||
-      ( (! bDeferred) && (  bWrapped  )
-                      && (! bIsolation) )
-     )
+  if (! config.render.dxgi.deferred_isolation)
   {
-    return
-      true;
+    if (bWrapped || SK_D3D11_IsDevCtxDeferred (pDevCtx))
+      return true;
   }
-
 
   static auto& rb =
     SK_GetCurrentRenderBackend ();
@@ -3898,12 +3906,15 @@ SK_D3D11_IgnoreWrappedOrDeferred ( bool                 bWrapped,
     //if (! rb.getDevice <ID3D11Device> ().IsEqualObject (pDevice))
     if (rb.device.p != pDevice.p)
     {
-      if (config.system.log_level > 2)
+      if (! SK_D3D11_EnsureMatchingDevices ((ID3D11Device *)rb.device.p, pDevice.p))
       {
-        SK_ReleaseAssert (!"Hooked command ignored because it happened on the wrong device");
-      }
+        if (config.system.log_level > 2)
+        {
+          SK_ReleaseAssert (!"Hooked command ignored because it happened on the wrong device");
+        }
 
-      return true;
+        return true;
+      }
     }
   }
 
@@ -4447,8 +4458,9 @@ SK_D3D11_DrawIndexed_Impl (
   if ( rb.isHDRCapable ()  &&
        rb.isHDRActive  () )
   {
-#define EPIC_OVERLAY_VS_CRC32C  0xa7ee5199
-#define UPLAY_OVERLAY_PS_CRC32C 0x35ae281c
+#define EPIC_OVERLAY_VS_CRC32C    0xa7ee5199
+#define UPLAY_OVERLAY_PS_CRC32C   0x35ae281c
+#define RESHADE_OVERLAY_VS_CRC32C 0xe944408b
 
     if (dev_idx == UINT_MAX)
     {
@@ -4470,19 +4482,25 @@ SK_D3D11_DrawIndexed_Impl (
         return;
       }
     }
-    
-    else if ( EPIC_OVERLAY_VS_CRC32C ==
-                shaders.vertex.current.shader [dev_idx] )
+
+    else
     {
-      if ( SUCCEEDED (
-             SK_D3D11_Inject_EpicHDR ( pDevCtx, IndexCount,
-                                         StartIndexLocation,
-                                           BaseVertexLocation,
-                                             D3D11_DrawIndexed_Original )
-           )
-         )
+      switch (shaders.vertex.current.shader [dev_idx])
       {
-        return;
+        case EPIC_OVERLAY_VS_CRC32C:
+          if ( SUCCEEDED (
+                 SK_D3D11_Inject_EpicHDR ( pDevCtx, IndexCount,
+                                             StartIndexLocation,
+                                               BaseVertexLocation,
+                                                 D3D11_DrawIndexed_Original )
+               )
+             )
+          {
+            return;
+          }
+          break;
+        default:
+          break;
       }
     }
   }
@@ -4542,6 +4560,43 @@ SK_D3D11_DrawIndexedInstanced_Impl (
   {
     return
       _Finish ();
+  }
+
+  static auto& rb =
+    SK_GetCurrentRenderBackend ();
+
+  //------
+
+  // Render-state tracking needs to be forced-on for the
+  //   ReShade Overlay HDR fix to work.
+  if ( rb.isHDRCapable ()  &&
+       rb.isHDRActive  () )
+  {
+#define RESHADE_OVERLAY_VS_CRC32C 0xe944408b
+
+    if (dev_idx == UINT_MAX)
+    {
+      dev_idx =
+        SK_D3D11_GetDeviceContextHandle (pDevCtx);
+    }
+
+    switch (SK_D3D11_Shaders->vertex.current.shader [dev_idx])
+    {
+      case RESHADE_OVERLAY_VS_CRC32C:
+        if ( SUCCEEDED (
+               SK_D3D11_Inject_ReShadeHDR ( pDevCtx, IndexCountPerInstance,
+                                              InstanceCount, StartIndexLocation,
+                                                BaseVertexLocation, StartInstanceLocation,
+                                                  D3D11_DrawIndexedInstanced_Original )
+             )
+           )
+        {
+          return;
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   if (! SK_D3D11_ShouldTrackDrawCall (pDevCtx, SK_D3D11DrawType::IndexedInstanced))
@@ -6365,8 +6420,12 @@ SK_D3D11_Init (void)
         {
           InterlockedIncrementRelease (&SK_D3D11_initialized);
 
-          success =
-            ( MH_OK == SK_ApplyQueuedHooks () );
+          bool  bEnable = SK_EnableApplyQueuedHooks  ();
+          {
+            success =
+              ( MH_OK == SK_ApplyQueuedHooks () );
+          }
+          if (! bEnable)  SK_DisableApplyQueuedHooks ();
         }
       }
 
@@ -7613,7 +7672,7 @@ D3D11CreateDeviceAndSwapChain_Detour (IDXGIAdapter          *pAdapter,
 
   if (! config.render.dxgi.debug_layer)
   {
-    if ( StrStrIW (SK_GetCallerName ().c_str (), L"d3d11.dll") || bEOSOverlay || (pSwapChainDesc != nullptr && !SK_DXGI_IsSwapChainReal (*pSwapChainDesc)))
+    if (bEOSOverlay || (pSwapChainDesc != nullptr && !SK_DXGI_IsSwapChainReal (*pSwapChainDesc)))
     {
       return
         D3D11CreateDeviceAndSwapChain_Import ( pAdapter,
@@ -7826,6 +7885,9 @@ D3D11CreateDeviceAndSwapChain_Detour (IDXGIAdapter          *pAdapter,
 
   if (SUCCEEDED (res) && ppDevice != nullptr)
   {
+    // Stash the pointer to this device so that we can test equality on wrapped devices
+    ret_device->SetPrivateData (SKID_D3D11DeviceBasePtr, sizeof (uintptr_t), ret_device);
+
     if ( ppSwapChain    != nullptr &&
          pSwapChainDesc != nullptr    )
     {
@@ -7992,12 +8054,6 @@ D3D11CreateDevice_Detour (
   Flags =
     SK_D3D11_MakeDebugFlags (Flags);
 
-  SK_TLS *pTLS =
-    SK_TLS_Bottom ();
-
-  auto& pTLS_d3d11 =
-    pTLS->render->d3d11.get ();
-
   // Optionally Enable Debug Layer
 //if (ReadAcquire (&__d3d11_ready) != 0)
   {
@@ -8011,40 +8067,10 @@ D3D11CreateDevice_Detour (
     }
   }
 
-  // Ignore Ansel
-  const bool bAnsel =
-    SK_COMPAT_IgnoreNvCameraCall ();
-
-  if (! config.render.dxgi.debug_layer)
-  {
-    if (pTLS_d3d11.skip_d3d11_create_device != FALSE || bAnsel)
-    {
-      HRESULT hr =
-        D3D11CreateDevice_Import ( pAdapter,
-                                   pAdapter == nullptr ? D3D_DRIVER_TYPE_HARDWARE
-                                                       : DriverType,
-                                     pAdapter == nullptr ? nullptr
-                                                         : Software, Flags,
-                                       pFeatureLevels, FeatureLevels, SDKVersion,
-                                         ppDevice, pFeatureLevel,
-                                           ppImmediateContext );
-
-      if (! bAnsel)
-        pTLS->render->d3d11->skip_d3d11_create_device = FALSE;
-
-      return hr;
-    }
-  }
-
   DXGI_LOG_CALL_1 (L"D3D11CreateDevice            ", L"Flags=0x%x", Flags);
-
-  SK_ScopedBool auto_bool_skip (
-    &pTLS->render->d3d11->skip_d3d11_create_device
-  );
   
   SK_RunOnce ({
     SK_D3D11_Init ();
-    pTLS->render->d3d11->skip_d3d11_create_device = TRUE;
   });
 
   HRESULT hr =

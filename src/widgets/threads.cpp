@@ -2397,12 +2397,21 @@ public:
 
       if (! it.second->self_titled)
       {
-        it.second->name        = SK_Thread_GetName       (it.second->dwTid);
-        it.second->self_titled = SK_Thread_HasCustomName (it.second->dwTid);
+        auto& thread_name = SK_Thread_GetName       (it.second->dwTid);
+        auto  self_titled = SK_Thread_HasCustomName (it.second->dwTid);
+
+        if (! thread_name.empty ())
+        {
+          it.second->name        = thread_name;
+          it.second->self_titled = self_titled;
+        }
       }
 
       if (it.second->self_titled)
+      {
+        it.second->name        = SK_Thread_GetName       (it.second->dwTid); // Name may have changed
         ImGui::PushStyleColor (ImGuiCol_Text, (ImVec4&&)ImColor::HSV (0.572222f, 0.63f, 0.95f));
+      }
       else
         ImGui::PushStyleColor (ImGuiCol_Text, (ImVec4&&)ImColor::HSV (0.472222f, 0.23f, 0.91f));
 

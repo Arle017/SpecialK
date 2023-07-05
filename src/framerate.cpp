@@ -403,24 +403,77 @@ SK_ImGui_LatentSyncConfig (void)
       ImGui::Text ( ICON_FA_MOUSE " %5.2f ms\t" ICON_FA_DESKTOP " %5.2f ms",
                     latency_avg.getInput (),    latency_avg.getDisplay () );
 
-      ImGui::Checkbox ("Adaptive Sync", &config.render.framerate.latent_sync.adaptive_sync);
+      ImGui::SameLine ();
+      ImGui::Spacing  ();
+      ImGui::SameLine ();
+      ImGui::VerticalSeparator 
+                      ();
+      ImGui::SameLine ();
+      ImGui::Spacing  ();
+      ImGui::SameLine ();
+      ImGui::Checkbox ("Allow Tearing", &config.render.dxgi.allow_tearing);
 
       if (ImGui::IsItemHovered ())
-        ImGui::SetTooltip ("Allows visible tearing if framerate dips below TargetFPS");
-
-      if ( (! config.render.framerate.latent_sync.adaptive_sync) &&
-              config.render.framerate.target_fps > rb.getActiveRefreshRate () + 3.0 )
       {
-        ImGui::SameLine        ();
-        ImGui::TextColored     (ImColor (1.0f, 1.0f, 0.0f), ICON_FA_EXCLAMATION_TRIANGLE);
-        ImGui::SameLine        ();
-        ImGui::TextUnformatted ("Required for 2x / 4x Scan");
+        ImGui::BeginTooltip ();
+        ImGui::Text         ("Enabling Tearing Produces the Lowest Possible Input Latency");
+        ImGui::Separator    ();
+        ImGui::BulletText   ("If GPU load is very high you may need to disable tearing");
+        ImGui::BulletText   ("Disabling tearing will add between 0 and 1 refresh cycles of latency, depending on GPU load");
+        ImGui::EndTooltip   ();
       }
 
-      ImGui::Checkbox ("Visualize Tearlines", &config.render.framerate.latent_sync.show_fcat_bars);
+      ImGui::Separator ();
 
-      if (ImGui::IsItemHovered ())
-        ImGui::SetTooltip ("Draws color-cycling bars to help locate tearing while VSYNC is off");
+      if (config.render.dxgi.allow_tearing)
+      {
+        ImGui::Checkbox ("Visualize Tearlines", &config.render.framerate.latent_sync.show_fcat_bars);
+
+        if (ImGui::IsItemHovered ())
+          ImGui::SetTooltip ("Draws color-cycling bars to help locate tearing while VSYNC is off");
+
+        if (ImGui::BeginMenu ("Tear Control Keybinds###TearingMenu"))
+        {
+          const auto Keybinding =
+          [] (SK_ConfigSerializedKeybind *binding) ->
+          auto
+          {
+            if (binding == nullptr)
+              return false;
+
+            std::string label =
+              SK_WideCharToUTF8      (binding->human_readable);
+
+            ImGui::PushID            (binding->bind_name);
+
+            binding->assigning =
+              SK_ImGui_KeybindSelect (binding, label.c_str ());
+
+            ImGui::PopID             ();
+
+            return true;
+          };
+
+          ImGui::BeginGroup ();
+          for ( auto& keybind : timing_keybinds )
+          {
+            ImGui::Text ( "%s:  ",
+                            keybind->bind_name );
+          }
+          ImGui::EndGroup   ();
+          ImGui::SameLine   ();
+          ImGui::BeginGroup ();
+          for ( auto& keybind : timing_keybinds )
+          {
+            Keybinding  (   keybind );
+          }
+          ImGui::EndGroup   ();
+
+          ImGui::EndMenu    ();
+        }
+
+        ImGui::Separator ();
+      }
 
       bAdvanced =
         ImGui::TreeNode ("Advanced");
@@ -445,7 +498,6 @@ SK_ImGui_LatentSyncConfig (void)
         }
 
         ImGui::InputFloat ("Retire Stats",  &__SK_LatentSync_SwapSecs, 0.1f, 1.0f, "After %.3f Seconds");
-        ImGui::InputInt   ("Adapt Margin",  &__SK_LatentSync_Adaptive);
 
         if (SK_GetCurrentRenderBackend ().api == SK_RenderAPI::OpenGL)
         {
@@ -475,46 +527,6 @@ SK_ImGui_LatentSyncConfig (void)
            pDisplay->signal.timing.vsync_freq.Numerator;
 
         SK_ReleaseAssert (llVSync0 == llVSync1);
-      }
-
-      if (ImGui::BeginMenu ("Tear Control Keybinds###TearingMenu"))
-      {
-        const auto Keybinding =
-        [] (SK_ConfigSerializedKeybind *binding) ->
-        auto
-        {
-          if (binding == nullptr)
-            return false;
-
-          std::string label =
-            SK_WideCharToUTF8      (binding->human_readable);
-
-          ImGui::PushID            (binding->bind_name);
-
-          binding->assigning =
-            SK_ImGui_KeybindSelect (binding, label.c_str ());
-
-          ImGui::PopID             ();
-
-          return true;
-        };
-
-        ImGui::BeginGroup ();
-        for ( auto& keybind : timing_keybinds )
-        {
-          ImGui::Text ( "%s:  ",
-                          keybind->bind_name );
-        }
-        ImGui::EndGroup   ();
-        ImGui::SameLine   ();
-        ImGui::BeginGroup ();
-        for ( auto& keybind : timing_keybinds )
-        {
-          Keybinding  (   keybind );
-        }
-        ImGui::EndGroup   ();
-
-        ImGui::EndMenu    ();
       }
 
       ImGui::TreePop  ( );
@@ -739,9 +751,6 @@ SK::Framerate::Init (void)
 
   pCommandProc->AddVariable ( "LatentSync.ResyncRate",
           new SK_IVarStub <int> (&config.render.framerate.latent_sync.scanline_resync, &__ProdigalFramerateSon));
-
-  pCommandProc->AddVariable ( "LatentSync.AdaptiveSync",
-          new SK_IVarStub <bool> (&config.render.framerate.latent_sync.adaptive_sync));
 
   pCommandProc->AddVariable ( "LatentSync.ShowFCATBars",
           new SK_IVarStub <bool> (&config.render.framerate.latent_sync.show_fcat_bars));
@@ -1267,6 +1276,8 @@ extern NtSetTimerResolution_pfn
 void
 SK::Framerate::Limiter::wait (void)
 {
+  SK_Thread_ScopedPriority prio_scope (THREAD_PRIORITY_TIME_CRITICAL);
+
   // Don't limit under certain circumstances or exiting / alt+tabbing takes
   //   longer than it should.
   if (ReadAcquire (&__SK_DLL_Ending) != 0)
@@ -1776,32 +1787,6 @@ SK::Framerate::Limiter::wait (void)
 
       next_ -=
         (__SK_LatentSyncSwapTime / 2);
-
-      // If Adaptive Sync is Disabled, Late Frames Must Wait For Next VBLANK
-      //
-      if (      pDisplay->signal.timing.vsync_freq.Numerator > 0     &&
-          config.render.framerate.latent_sync.adaptive_sync == false &&
-                                    SK_QueryPerf ().QuadPart > next_ +
-                                        ticks_per_scanline  * __SK_LatentSync_Adaptive
-                                                            && next_ >
-                                    SK_QueryPerf ().QuadPart - ticks_per_refresh * 3
-         )
-      {
-        LONGLONG llNext =
-                   next_;
-
-        while (llNext < SK_QueryPerf ().QuadPart)
-               llNext += ticks_per_refresh;
-
-        const DWORD dwTimeToWait =
-          sk::narrow_cast <DWORD> (
-            ( llNext - SK_QueryPerf ().QuadPart ) / SK_QpcTicksPerMs );
-
-        if (          dwTimeToWait > 1)
-          SK_SleepEx (dwTimeToWait - 1, FALSE);
-
-        next_ = llNext;
-      }
     }
 
 
@@ -1846,8 +1831,8 @@ SK::Framerate::Limiter::wait (void)
   if (config.render.framerate.present_interval == 0 && ticks_per_scanline > 1)
   {
     // Disable Low-Latency Mode when using Latent Sync
-    if (config.render.framerate.enforcement_policy != 4)
-    {   config.render.framerate.enforcement_policy  = 4; }
+    if (config.render.framerate.enforcement_policy > 0)
+    {   config.render.framerate.enforcement_policy = -config.render.framerate.enforcement_policy; }
 
     static D3DKMTGetScanLine_pfn
            D3DKMTGetScanLine =
@@ -2007,6 +1992,12 @@ SK::Framerate::Limiter::wait (void)
     }
   }
 
+  else
+  {
+    // Latent Sync -was- on, but now it's off and we need to restore original preference
+    if (config.render.framerate.enforcement_policy < 0)
+    {   config.render.framerate.enforcement_policy = -config.render.framerate.enforcement_policy; }
+  }
 
   if (! std::exchange (lazy_init, true))
   {

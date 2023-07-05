@@ -295,14 +295,14 @@ struct SK_HDR_Preset_s {
       store ();
     }
   }
-} static hdr_presets  [4] = { { "HDR Preset 0", 0,   80.0_Nits,  80.0_Nits, 100.0_Nits, 0.933f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },            -__SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F1" },
-                              { "HDR Preset 1", 1,  200.0_Nits, 100.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F2" },
-                              { "scRGB Native", 2,   80.0_Nits,  80.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F3" },
-                              { "HDR10 Native", 3,   80.0_Nits,  80.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_HDR10_PASSTHROUGH },  __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F4" } },
-         hdr_defaults [4] = { { "HDR Preset 0", 0,   80.0_Nits,  80.0_Nits, 100.0_Nits, 0.933f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },            -__SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F1" },
-                              { "HDR Preset 1", 1,  200.0_Nits, 100.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F2" },
-                              { "scRGB Native", 2,   80.0_Nits,  80.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F3" },
-                              { "HDR10 Native", 3,   80.0_Nits,  80.0_Nits, 100.0_Nits,   1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_HDR10_PASSTHROUGH },  __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F4" } };
+} static hdr_presets  [4] = { { "HDR Preset 0", 0,   80.0_Nits,  80.0_Nits, 100.0_Nits, 0.92f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },            -__SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F1" },
+                              { "HDR Preset 1", 1,  200.0_Nits, 100.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F2" },
+                              { "scRGB Native", 2,   80.0_Nits,  80.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F3" },
+                              { "HDR10 Native", 3,   80.0_Nits,  80.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_HDR10_PASSTHROUGH },  __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F4" } },
+         hdr_defaults [4] = { { "HDR Preset 0", 0,   80.0_Nits,  80.0_Nits, 100.0_Nits, 0.92f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },            -__SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F1" },
+                              { "HDR Preset 1", 1,  200.0_Nits, 100.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F2" },
+                              { "scRGB Native", 2,   80.0_Nits,  80.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_NONE   },             __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F3" },
+                              { "HDR10 Native", 3,   80.0_Nits,  80.0_Nits, 100.0_Nits,  1.0f, 1.0f, 0.01f, { SK_HDR_TONEMAP_HDR10_PASSTHROUGH },  __SK_HDR_PQBoost0, __SK_HDR_PQBoost1, __SK_HDR_PQBoost2, __SK_HDR_PQBoost3, L"Shift+F4" } };
 
 BOOL
 CALLBACK
@@ -580,7 +580,7 @@ SK_HDR_DisplayProfilerDialog (bool draw = true)
   if (bOpen)
   {
     auto pHDRWidget          =
-      ImGui::FindWindowByName ("DXGI_HDR##Widget_DXGI_HDR");
+      ImGui::FindWindowByName ("HDR Configuration##Widget_DXGI_HDR");
     auto pControlPanelWindow =
       ImGui::FindWindowByName (SK_ImGui_ControlPanelTitle ());
 
@@ -613,7 +613,7 @@ SK_HDR_DisplayProfilerDialog (bool draw = true)
     if (bLastOpen)
     { 
       auto pHDRWidget          =
-        ImGui::FindWindowByName ("DXGI_HDR##Widget_DXGI_HDR");
+        ImGui::FindWindowByName ("HDR Configuration##Widget_DXGI_HDR");
       auto pControlPanelWindow =
         ImGui::FindWindowByName (SK_ImGui_ControlPanelTitle ());
 
@@ -762,7 +762,7 @@ extern iSK_INI* osd_ini;
 class SKWG_HDR_Control : public SK_Widget, SK_IVariableListener
 {
 public:
-  SKWG_HDR_Control (void) : SK_Widget ("DXGI_HDR")
+  SKWG_HDR_Control (void) : SK_Widget ("HDR Configuration")
   {
     SK_ImGui_Widgets->hdr_control = this;
 
@@ -782,7 +782,9 @@ public:
       SK_IVarStub <float>* vert        = new SK_IVarStub <float> (&__SK_HDR_VertCoverage);
       SK_IVarStub <bool>*  adaptive    = new SK_IVarStub <bool>  (&__SK_HDR_AdaptiveToneMap);
       SK_IVarStub <int>*   bypass_srgb = new SK_IVarStub <int>   (&__SK_HDR_Bypass_sRGB);
+      SK_IVarStub <bool>*  enable      = new SK_IVarStub <bool>  (&__SK_HDR_16BitSwap, this);
 
+      pCommandProc->AddVariable ( "HDR.Enable",          enable                                );
       pCommandProc->AddVariable ( "HDR.Preset",          &preset->setRange      (0, 3)         );
       pCommandProc->AddVariable ( "HDR.Visualization",   &vis->setRange         (0, 11)        );
       pCommandProc->AddVariable ( "HDR.Tonemap",         &tonemap->setRange     (0, 2)         );
@@ -801,11 +803,25 @@ public:
   bool OnVarChange (SK_IVariable* var, void* val = nullptr) override
   {
     if ( val != nullptr &&
-         var != nullptr && var->getValuePointer () == &__SK_HDR_Preset )
+         var != nullptr )
     {
-      __SK_HDR_Preset = *(int *)val;
+      if ( var->getValuePointer () == &__SK_HDR_Preset )
+      {
+        __SK_HDR_Preset = *(int *)val;
 
-      hdr_presets [__SK_HDR_Preset].activate ();
+        hdr_presets [__SK_HDR_Preset].activate ();
+      }
+
+      if ( var->getValuePointer () == &__SK_HDR_16BitSwap )
+      {
+        __SK_HDR_16BitSwap = *(bool *)val;
+
+        static auto& rb =
+          SK_GetCurrentRenderBackend ();
+
+        rb.scanout.colorspace_override = __SK_HDR_16BitSwap ? DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+                                                            : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+      }
     }
 
     return true;
@@ -864,6 +880,10 @@ public:
       _CreateConfigParameterBool ( SK_HDR_SECTION,
                                   L"Use16BitSwapChain",  __SK_HDR_16BitSwap,
                                   L"16-bit SwapChain" );
+
+    // Must start OFF, user can turn on later.
+    if (SK_GetCurrentGameID () == SK_GAME_ID::DiabloIV)
+      __SK_HDR_16BitSwap = false;
 
 
     _SK_HDR_Promote8BitRGBxTo16BitFP =
@@ -973,8 +993,8 @@ public:
     static bool TenBitSwap_Original     = __SK_HDR_10BitSwap;
     static bool SixteenBitSwap_Original = __SK_HDR_16BitSwap;
 
-    static int sel = __SK_HDR_16BitSwap ? 2 :
-                     __SK_HDR_10BitSwap ? 1 : 0;
+    int sel = __SK_HDR_16BitSwap ? 2 :
+              __SK_HDR_10BitSwap ? 1 : 0;
 
     SK_HDR_DisplayProfilerDialog ();
 
@@ -1098,18 +1118,37 @@ public:
       }
     }
 
-    if (rb.isHDRCapable () && rb.isHDRActive ())
+    static bool bStreamline =
+      SK_GetModuleHandleW (L"sl.interposer.dll") != nullptr;
+
+    if (bStreamline && ImGui::IsItemHovered ())
     {
-      if (ImGui::IsItemHovered ())
+      ImGui::BeginTooltip      ( );
       {
-        ImGui::BeginTooltip ();
-        {
-          ImGui::TextUnformatted ("For best image quality, ensure your desktop is using 10-bit color");
-          ImGui::Separator ();
-          ImGui::BulletText ("Either RGB Full-Range or YCbCr-4:4:4 will work");
-          ImGui::EndTooltip ();
-        }
+        ImGui::TextColored     ( ImVec4 (1.f, 1.f, 0.0f, 1.f), "%s",
+                                   ICON_FA_EXCLAMATION_TRIANGLE " WARNING: " );
+        ImGui::SameLine        ( );
+        ImGui::TextColored     ( ImColor::HSV (.15f, .8f, .9f), "%s",
+                                   "This game uses NVIDIA Streamline, and HDR may not work!" );
+        ImGui::Separator       ( );
+        ImGui::BulletText      ( "If HDR causes the game to freeze or crash, "
+                                 "you may need to replace or delete sl.interposer.dll" );
+        ImGui::BulletText      ( "DLSS 3 Frame Generation is NOT compatible with scRGB HDR" );
+        ImGui::Separator       ( );
+        ImGui::TextUnformatted ( "See the Streamline section of Special K's Wiki for more details." );
       }
+      ImGui::EndTooltip        ( );
+    }
+
+    else if (rb.isHDRCapable () && rb.isHDRActive () && ImGui::IsItemHovered ())
+    {
+      ImGui::BeginTooltip ();
+      {
+        ImGui::TextUnformatted ("For best image quality, ensure your desktop is using 10-bit color");
+        ImGui::Separator       ();
+        ImGui::BulletText      ("Either RGB Full-Range or YCbCr-4:4:4 will work");
+      }
+      ImGui::EndTooltip ();
     }
 
     if (! rb.isHDRCapable ())

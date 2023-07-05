@@ -41,7 +41,6 @@ NvAPI_Disp_ColorControl_pfn       NvAPI_Disp_ColorControl_Original       = nullp
 NvAPI_GPU_GetRamType_pfn            NvAPI_GPU_GetRamType            = nullptr;
 NvAPI_GPU_GetFBWidthAndLocation_pfn NvAPI_GPU_GetFBWidthAndLocation = nullptr;
 NvAPI_GPU_GetPCIEInfo_pfn           NvAPI_GPU_GetPCIEInfo           = nullptr;
-NvAPI_GetPhysicalGPUFromGPUID_pfn   NvAPI_GetPhysicalGPUFromGPUID   = nullptr;
 NvAPI_GetGPUIDFromPhysicalGPU_pfn   NvAPI_GetGPUIDFromPhysicalGPU   = nullptr;
 NvAPI_Disp_SetDitherControl_pfn     NvAPI_Disp_SetDitherControl     = nullptr;
 NvAPI_Disp_GetDitherControl_pfn     NvAPI_Disp_GetDitherControl     = nullptr;
@@ -257,11 +256,11 @@ sk::NVAPI::EnumGPUs_DXGI (void)
 
     NVAPI_CALL (GPU_GetFullName (_nv_dxgi_gpus [i], name));
 
-    NV_DISPLAY_DRIVER_MEMORY_INFO meminfo;
-    meminfo.version = NV_DISPLAY_DRIVER_MEMORY_INFO_VER_2;
-    // ^^^ V3 is for Windows 10+ only, we don't even care about eviction stats.
+    NV_GPU_MEMORY_INFO_EX
+      meminfo;
+      meminfo.version = NV_GPU_MEMORY_INFO_EX_VER_1;
 
-    NVAPI_CALL (GPU_GetMemoryInfo (_nv_dxgi_gpus [i], &meminfo));
+    NvAPI_GPU_GetMemoryInfoEx (_nv_dxgi_gpus [i], &meminfo);
 
     MultiByteToWideChar (CP_OEMCP, 0, name, -1, adapterDesc.Description, 64);
 
@@ -437,6 +436,9 @@ NvAPI_Disp_GetHdrCapabilities_Override ( NvU32                displayId,
       L"  | ST2084 Gamma... |  %s\n"
       L"  | HDR Gamma...... |  %s\n"
       L"  | SDR Gamma...... |  %s\n"
+      L"  | Dolby Vision... |  %s\n"
+      L"  | HDR10+......... |  %s\n"
+      L"  | HDR10+ Gaming.. |  %s\n"
       L"  |  ?  4:4:4 10bpc |  %s\n"
       L"  |  ?  4:4:4 12bpc |  %s\n"
       L"  | YUV 4:2:2 12bpc |  %s\n"
@@ -452,6 +454,9 @@ NvAPI_Disp_GetHdrCapabilities_Override ( NvU32                displayId,
                pHdrCapabilities->isST2084EotfSupported                          ? L"Yes" : L"No",
                pHdrCapabilities->isTraditionalHdrGammaSupported                 ? L"Yes" : L"No",
                pHdrCapabilities->isTraditionalSdrGammaSupported                 ? L"Yes" : L"No",
+               pHdrCapabilities->isDolbyVisionSupported                         ? L"Yes" : L"No",
+               pHdrCapabilities->isHdr10PlusSupported                           ? L"Yes" : L"No",
+               pHdrCapabilities->isHdr10PlusGamingSupported                     ? L"Yes" : L"No",
               (pHdrCapabilities->dv_static_metadata.supports_10b_12b_444 & 0x1) ? L"Yes" : L"No",
               (pHdrCapabilities->dv_static_metadata.supports_10b_12b_444 & 0x2) ? L"Yes" : L"No",
                pHdrCapabilities->dv_static_metadata.supports_YUV422_12bit       ? L"Yes" : L"No");
@@ -1097,7 +1102,7 @@ NvAPI_QueryInterface_Detour (unsigned int ordinal)
     void* pAddr =
       NvAPI_QueryInterface_Original (ordinal);
 
-    dll_log->Log ( L"NvAPI Ordinal: %lu [%p]  --  %s", ordinal,
+    dll_log->Log ( L"[  NvAPI   ] NvAPI Ordinal: %lu [%p]  --  %s", ordinal,
                      pAddr, SK_SummarizeCaller ().c_str ()    );
 
     return
@@ -1262,8 +1267,6 @@ NVAPI::InitializeLibrary (const wchar_t* wszAppName)
       (NvAPI_GPU_GetFBWidthAndLocation_pfn)NvAPI_QueryInterface (0x11104158u);
     NvAPI_GPU_GetPCIEInfo =
       (NvAPI_GPU_GetPCIEInfo_pfn)NvAPI_QueryInterface           (0xE3795199u);
-    NvAPI_GetPhysicalGPUFromGPUID =
-      (NvAPI_GetPhysicalGPUFromGPUID_pfn)NvAPI_QueryInterface   (0x5380AD1Au);
     NvAPI_GetGPUIDFromPhysicalGPU =
       (NvAPI_GetGPUIDFromPhysicalGPU_pfn)NvAPI_QueryInterface   (0x6533EA3Eu);
 
@@ -1326,10 +1329,14 @@ NVAPI::InitializeLibrary (const wchar_t* wszAppName)
     if (SK_IsAdmin ())
       SK_NvAPI_AllowGFEOverlay (false, L"SKIF", L"SKIF.exe");
 
-  // SK_CreateDLLHook2 ( L"nvapi64.dll",
-  //                      "nvapi_QueryInterface",
-  //                       NvAPI_QueryInterface_Detour,
-  //static_cast_p2p <void> (&NvAPI_QueryInterface_Original) );
+//#define NVAPI_ORDINAL_TEST
+#ifdef NVAPI_ORDINAL_TEST
+   SK_CreateDLLHook2 ( L"nvapi64.dll",
+                        "nvapi_QueryInterface",
+                         NvAPI_QueryInterface_Detour,
+  static_cast_p2p <void> (&NvAPI_QueryInterface_Original) );
+   SK_ApplyQueuedHooks ();
+#endif
 
 //#ifdef SK_AGGRESSIVE_HOOKS
 //      SK_ApplyQueuedHooks ();

@@ -275,6 +275,23 @@ typedef struct _D3DKMT_WDDM_2_9_CAPS {
   };
 } D3DKMT_WDDM_2_9_CAPS;
 
+// DXGK_FEATURE_SUPPORT constants
+
+// When a driver doesn't support a feature, it doesn't call into QueryFeatureSupport with that feature ID.
+// This value is provided for implementation convenience of enumerating possible driver support states
+// for a particular feature.
+#define DXGK_FEATURE_SUPPORT_ALWAYS_OFF ((UINT)0)
+
+// Driver support for a feature is in the experimental state
+#define DXGK_FEATURE_SUPPORT_EXPERIMENTAL ((UINT)1)
+
+// Driver support for a feature is in the stable state
+#define DXGK_FEATURE_SUPPORT_STABLE ((UINT)2)
+
+// Driver support for a feature is in the always on state,
+// and it doesn't operate without this feature enabled.
+#define DXGK_FEATURE_SUPPORT_ALWAYS_ON ((UINT)3)
+
 typedef struct _D3DKMT_WDDM_3_0_CAPS {
   union {
     struct {
@@ -288,7 +305,55 @@ typedef struct _D3DKMT_WDDM_3_0_CAPS {
 } D3DKMT_WDDM_3_0_CAPS;
 #endif
 
+typedef enum _QAI_DRIVERVERSION
+{
+    KMT_DRIVERVERSION_WDDM_1_0               = 1000,
+    KMT_DRIVERVERSION_WDDM_1_1_PRERELEASE    = 1102,
+    KMT_DRIVERVERSION_WDDM_1_1               = 1105,
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WIN8)
+    KMT_DRIVERVERSION_WDDM_1_2               = 1200,
+#endif
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM1_3)
+    KMT_DRIVERVERSION_WDDM_1_3               = 1300,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM1_3
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_0)
+    KMT_DRIVERVERSION_WDDM_2_0               = 2000,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_0
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_1)
+    KMT_DRIVERVERSION_WDDM_2_1               = 2100,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_1
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_2)
+    KMT_DRIVERVERSION_WDDM_2_2 = 2200,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_2
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_3)
+    KMT_DRIVERVERSION_WDDM_2_3 = 2300,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_3
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_4)
+    KMT_DRIVERVERSION_WDDM_2_4 = 2400,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_4
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_5)
+    KMT_DRIVERVERSION_WDDM_2_5 = 2500,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_5
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_6)
+    KMT_DRIVERVERSION_WDDM_2_6 = 2600,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_6
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_7)
+    KMT_DRIVERVERSION_WDDM_2_7 = 2700,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_7
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_8)
+    KMT_DRIVERVERSION_WDDM_2_8 = 2800,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_8
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM2_9)
+    KMT_DRIVERVERSION_WDDM_2_9 = 2900,
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM2_9
+#if (DXGKDDI_INTERFACE_VERSION >= DXGKDDI_INTERFACE_VERSION_WDDM3_0)
+    KMT_DRIVERVERSION_WDDM_3_0 = 3000,
+    KMT_DRIVERVERSION_WDDM_3_1 = 3100
+#endif // DXGKDDI_INTERFACE_VERSION_WDDM3_0
+} D3DKMT_DRIVERVERSION;
+
 struct SK_WDDM_CAPS {
+  D3DKMT_DRIVERVERSION version = KMT_DRIVERVERSION_WDDM_1_0;
   D3DKMT_WDDM_1_2_CAPS _1_2 = { };
   D3DKMT_WDDM_1_3_CAPS _1_3 = { };
   D3DKMT_WDDM_2_0_CAPS _2_0 = { };
@@ -296,7 +361,7 @@ struct SK_WDDM_CAPS {
   D3DKMT_WDDM_2_9_CAPS _2_9 = { };
   D3DKMT_WDDM_3_0_CAPS _3_0 = { };
 
-  void init (void);
+  void init (D3DKMT_HANDLE hAdapter);
 };
 
 typedef struct _D3DKMT_MULTIPLANE_OVERLAY_CAPS
@@ -454,14 +519,16 @@ typedef struct _D3DKMT_CLOSEADAPTER {
 #define D3DKMT_MAX_PRESENT_HISTORY_SCATTERBLTS 12
 
 typedef enum _D3DKMT_PRESENT_MODEL {
-  D3DKMT_PM_UNINITIALIZED           = 0,
-  D3DKMT_PM_REDIRECTED_GDI          = 1,
-  D3DKMT_PM_REDIRECTED_FLIP         = 2,
-  D3DKMT_PM_REDIRECTED_BLT          = 3,
-  D3DKMT_PM_REDIRECTED_VISTABLT     = 4,
-  D3DKMT_PM_SCREENCAPTUREFENCE      = 5,
-  D3DKMT_PM_REDIRECTED_GDI_SYSMEM   = 6,
-  D3DKMT_PM_REDIRECTED_COMPOSITION  = 7
+  D3DKMT_PM_UNINITIALIZED          = 0,
+  D3DKMT_PM_REDIRECTED_GDI         = 1,
+  D3DKMT_PM_REDIRECTED_FLIP        = 2,
+  D3DKMT_PM_REDIRECTED_BLT         = 3,
+  D3DKMT_PM_REDIRECTED_VISTABLT    = 4,
+  D3DKMT_PM_SCREENCAPTUREFENCE     = 5,
+  D3DKMT_PM_REDIRECTED_GDI_SYSMEM  = 6,
+  D3DKMT_PM_REDIRECTED_COMPOSITION = 7,
+  D3DKMT_PM_SURFACECOMPLETE        = 8,
+  D3DKMT_PM_FLIPMANAGER            = 9,
 } D3DKMT_PRESENT_MODEL;
 
 typedef enum D3DDDI_FLIPINTERVAL_TYPE {
@@ -605,6 +672,8 @@ typedef struct _D3DKMT_DEVICEPRESENT_QUEUE_STATE {
 } D3DKMT_DEVICEPRESENT_QUEUE_STATE;
 #pragma pack (pop)
 
+HRESULT SK_D3DKMT_QueryAdapterInfo (D3DKMT_QUERYADAPTERINFO *pQueryAdapterInfo);
+
 typedef NTSTATUS (NTAPI *PFND3DKMT_QUERYADAPTERINFO)(    D3DKMT_QUERYADAPTERINFO    *pData);
 typedef NTSTATUS (NTAPI *PFND3DKMT_OPENADAPTERFROMLUID)( D3DKMT_OPENADAPTERFROMLUID *unnamedParam1);
 typedef NTSTATUS (NTAPI *PFND3DKMT_CLOSEADAPTER)(        D3DKMT_CLOSEADAPTER        *unnamedParam1);
@@ -700,6 +769,24 @@ struct SK_ColorSpace {
 const char*
 HDRModeToStr (NV_HDR_MODE mode);
 
+enum class PresentMode
+{
+  Unknown,
+  Hardware_Legacy_Flip,
+  Hardware_Legacy_Copy_To_Front_Buffer,
+  /* Not detected:
+  Hardware_Direct_Flip,
+  */
+  Hardware_Independent_Flip,
+  Composed_Flip,
+  Composed_Copy_GPU_GDI,
+  Composed_Copy_CPU_GDI,
+  Composed_Composition_Atlas,
+  Hardware_Composed_Independent_Flip,
+};
+
+using SK_PresentMode =
+         PresentMode;
 
 class SK_RenderBackend_V2 : public SK_RenderBackend_V1
 {
@@ -756,6 +843,7 @@ public:
   bool                    driver_based_hdr     = false;
   SK_ColorSpace           display_gamut;       // EDID
   SK_ColorSpace           working_gamut;       // Metadata range
+  SK_PresentMode          present_mode         = SK_PresentMode::Unknown;
 
   struct output_s {
     UINT                  idx                  =   0;
@@ -766,6 +854,7 @@ public:
     DXGI_COLOR_SPACE_TYPE colorspace           = DXGI_COLOR_SPACE_CUSTOM;
     bool                  primary              = false;
     uint32_t              mpo_planes           =     0;
+    SK_WDDM_CAPS          wddm_caps            = { };
                                                
     struct {                                   
       bool                enabled              = false;
@@ -793,6 +882,9 @@ public:
       NvDisplayHandle     display_handle       =   nullptr;
       NvU32               display_id           =   0;
       NvU32               output_id            =   0;
+      NV_MONITOR_CAPABILITIES
+                          monitor_caps         = { };
+      BOOL                vrr_enabled          =  -1;
     } nvapi;
 
     struct signal_info_s {
@@ -1123,10 +1215,13 @@ public:
   struct gsync_s
   { void update (bool force = false);
 
-    BOOL  capable      = FALSE;
-    BOOL  active       = FALSE;
-    BOOL  disabled     = FALSE;
-    DWORD last_checked = 0;
+    BOOL   capable      = FALSE;
+    BOOL   active       = FALSE;
+    struct {
+      bool for_app      = false;
+    } disabled;
+    BOOL   maybe_active = FALSE; // If PresentMon isn't working...
+    DWORD  last_checked = 0;
   } gsync_state;
 
 
@@ -1334,7 +1429,10 @@ using D3DKMTWaitForVerticalBlankEvent_pfn  = NTSTATUS (WINAPI *)(const D3DKMT_WA
 using D3DKMTGetScanLine_pfn                = NTSTATUS (WINAPI *)(D3DKMT_GETSCANLINE                      *unnamedParam1);
 using D3DKMTSetStablePowerState_pfn        = NTSTATUS (WINAPI *)(const D3DKMT_SETSTABLEPOWERSTATE        *unnamedParam1);
 
-void SK_Display_ApplyDesktopResolution (MONITORINFOEX& mi);
+bool SK_Display_ApplyDesktopResolution (MONITORINFOEX& mi);
+
+uint32_t
+SK_Render_GetVulkanInteropSwapChainType (IUnknown *swapchain);
 
 // Disables Vulkan layers (i.e. if using DXGI interop, prefer software hook the D3D11 SwapChain and not Vulkan)
 void SK_Vulkan_DisableThirdPartyLayers (void); // Can only be called during application startup

@@ -1399,16 +1399,16 @@ void
 WINAPI
 ExitProcess_Detour (UINT uExitCode)
 {
+  SK_LOG0 ( ( L"Software Is Ending With Exit Code (%x)",
+                    uExitCode ), __SK_SUBSYSTEM__ );
+
   // Since many, many games don't shutdown cleanly, let's unload ourself.
   SK_SelfDestruct ();
 
-  if (ExitProcess_Original != nullptr)
-  {
-    return SK_ExitProcess (uExitCode);
-  }
+  auto jmpTerminateProcess =
+    SK_Hook_GetTrampoline (TerminateProcess);
 
-  else
-    ExitProcess (uExitCode);
+  jmpTerminateProcess (GetCurrentProcess (), uExitCode);
 }
 
 using RtlExitUserProcess_pfn = int (WINAPI*)(NTSTATUS);
@@ -3637,6 +3637,22 @@ SK::Diagnostics::Debugger::Allow  (bool bAllow)
   if (config.compatibility.disable_debug_features)
   {
     SK_MinHook_Init ();
+  }
+
+  // This is hooked so that we can catch and cleanly unload
+  //   if a game crashes during exit.
+  SK_CreateDLLHook2 (    L"kernel32",
+                          "ExitProcess",
+                           ExitProcess_Detour,
+  static_cast_p2p <void> (&ExitProcess_Original) );
+
+  SK_CreateDLLHook2 (      L"kernel32",
+                          "TerminateProcess",
+                           TerminateProcess_Detour,
+  static_cast_p2p <void> (&TerminateProcess_Original) );
+  
+  if (config.compatibility.disable_debug_features)
+  {
     return false;
   }
 
@@ -3654,13 +3670,6 @@ SK::Diagnostics::Debugger::Allow  (bool bAllow)
     static bool          basic_init = false;
     if (! std::exchange (basic_init, true))
     {
-      SK_CreateDLLHook2 (      L"kernel32",
-                                "TerminateProcess",
-                                 TerminateProcess_Detour,
-        static_cast_p2p <void> (&TerminateProcess_Original) );
-
-
-
       SK_CreateDLLHook2 (       L"kernel32",
                                 "SetThreadPriority",
                                  SetThreadPriority_Detour,
@@ -3709,10 +3718,10 @@ SK::Diagnostics::Debugger::Allow  (bool bAllow)
                              RtlReleasePebLock_Detour,
     static_cast_p2p <void> (&RtlReleasePebLock_Original) );
 
-    SK_CreateDLLHook2 (      L"kernel32",
-                          "TerminateThread",
-                           TerminateThread_Detour,
-  static_cast_p2p <void> (&TerminateThread_Original) );
+    SK_CreateDLLHook2 (    L"kernel32",
+                            "TerminateThread",
+                             TerminateThread_Detour,
+    static_cast_p2p <void> (&TerminateThread_Original) );
 #endif
 
 #ifdef _EXTENDED_DEBUG
@@ -3803,11 +3812,6 @@ SK::Diagnostics::Debugger::Allow  (bool bAllow)
                                   "RtlExitUserThread",
                                    RtlExitUserThread_Detour,
           static_cast_p2p <void> (&RtlExitUserThread_Original) );
-
-        SK_CreateDLLHook2 (      L"kernel32",
-                                  "ExitProcess",
-                                   ExitProcess_Detour,
-          static_cast_p2p <void> (&ExitProcess_Original) );
       }
 
       SK_CreateDLLHook2 (      L"kernel32",

@@ -203,6 +203,13 @@ static constexpr constexpr_module_s::list_type __blacklist = {
   L"zfgamebrowser.exe", // Genshin Impact Launcher
   L"dsx.exe",           // Dual Sense X
 
+  L"beamng.drive.exe",  // BeamNG's 32-bit launcher
+
+  L"setup_redlauncher.exe", // The Witcher 3's Launcher
+
+  L"cefsharp.browsersubprocess.exe", // Baldur's Gate 3
+  L"larilauncher.exe",
+
   L"coherentui_host.exe",
   L"activationui.exe",
   L"zossteamstarter.exe",
@@ -261,5 +268,6 @@ static constexpr constexpr_module_s::list_type __blacklist = {
   L"itype.exe",
   L"devenv.exe",
   L"msedge.exe",
-  L"vsgraphics.exe"
+  L"vsgraphics.exe",
+  L"msedgewebview2.exe"
 };
